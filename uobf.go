@@ -131,15 +131,7 @@ type BacklogManager interface {
 type ProcessFunc func(ctx context.Context, localPath string) (processedPath string, err error)
 
 // ProgressCallback provides progress feedback
-type ProgressCallback func(processed, total int64, phase ProcessingPhase)
-
-type ProcessingPhase int
-
-const (
-	PhaseScanning ProcessingPhase = iota
-	PhaseFiltering
-	PhaseProcessing
-)
+type ProgressCallback func(processed, total int64)
 
 // ScanAndFilterOptions provides options for the scanning and filtering phase
 type ScanAndFilterOptions struct {
@@ -152,8 +144,8 @@ type ScanAndFilterOptions struct {
 	// EstimatedTotal for progress calculation (based on previous scan)
 	EstimatedTotal int64
 
-	// ProgressInterval - report progress every N files
-	ProgressInterval int64
+	// ProgressEach - report progress every N files
+	ProgressEach int64
 
 	// ProgressCallback for progress updates
 	ProgressCallback ProgressCallback
@@ -161,9 +153,6 @@ type ScanAndFilterOptions struct {
 
 // ProcessingOptions provides options for the processing phase
 type ProcessingOptions struct {
-	// TempDir for temporary file storage
-	TempDir string
-
 	// Concurrency for parallel processing
 	Concurrency int
 
@@ -173,8 +162,8 @@ type ProcessingOptions struct {
 	// RetryDelay between retry attempts
 	RetryDelay time.Duration
 
-	// ProgressInterval - report progress every N files
-	ProgressInterval int64
+	// ProgressEach - report progress every N files
+	ProgressEach int64
 
 	// ProgressCallback for progress updates
 	ProgressCallback ProgressCallback
@@ -212,17 +201,17 @@ func (e *NetworkError) IsRetryable() bool {
 // Main Workflow
 // =============================================================================
 
-// ProcessingWorkflow manages the complete workflow
-type ProcessingWorkflow struct {
+// OverwriteWorkflow manages the complete overwrite batch workflow
+type OverwriteWorkflow struct {
 	fs             FileSystem
 	statusMemory   StatusMemory
 	backlogManager BacklogManager
 	logger         Logger
 }
 
-// NewProcessingWorkflow creates a new workflow instance
-func NewProcessingWorkflow(fs FileSystem, statusMemory StatusMemory, backlogManager BacklogManager) *ProcessingWorkflow {
-	return &ProcessingWorkflow{
+// NewOverwriteWorkflow creates a new overwrite workflow instance
+func NewOverwriteWorkflow(fs FileSystem, statusMemory StatusMemory, backlogManager BacklogManager) *OverwriteWorkflow {
+	return &OverwriteWorkflow{
 		fs:             fs,
 		statusMemory:   statusMemory,
 		backlogManager: backlogManager,
@@ -231,7 +220,7 @@ func NewProcessingWorkflow(fs FileSystem, statusMemory StatusMemory, backlogMana
 }
 
 // SetLogger sets the logger for the workflow and propagates it to sub-components
-func (w *ProcessingWorkflow) SetLogger(logger Logger) {
+func (w *OverwriteWorkflow) SetLogger(logger Logger) {
 	w.logger = logger
 	w.fs.SetLogger(logger.WithFields(map[string]interface{}{"component": "filesystem"}))
 	w.statusMemory.SetLogger(logger.WithFields(map[string]interface{}{"component": "status_memory"}))
@@ -239,7 +228,7 @@ func (w *ProcessingWorkflow) SetLogger(logger Logger) {
 }
 
 // ScanAndFilter performs the scanning and filtering phase
-func (w *ProcessingWorkflow) ScanAndFilter(ctx context.Context, options ScanAndFilterOptions) error {
+func (w *OverwriteWorkflow) ScanAndFilter(ctx context.Context, options ScanAndFilterOptions) error {
 	w.logger.Info("Starting scan and filter phase",
 		"estimated_total", options.EstimatedTotal)
 
@@ -289,7 +278,7 @@ func (w *ProcessingWorkflow) ScanAndFilter(ctx context.Context, options ScanAndF
 }
 
 // ProcessFiles performs the processing phase
-func (w *ProcessingWorkflow) ProcessFiles(ctx context.Context, options ProcessingOptions) error {
+func (w *OverwriteWorkflow) ProcessFiles(ctx context.Context, options ProcessingOptions) error {
 	w.logger.Info("Starting file processing phase",
 		"concurrency", options.Concurrency,
 		"retry_count", options.RetryCount)
@@ -316,7 +305,7 @@ func (w *ProcessingWorkflow) ProcessFiles(ctx context.Context, options Processin
 }
 
 // processWithConcurrency handles concurrent processing of files
-func (w *ProcessingWorkflow) processWithConcurrency(ctx context.Context, relPaths <-chan string, total int64, options ProcessingOptions) error {
+func (w *OverwriteWorkflow) processWithConcurrency(ctx context.Context, relPaths <-chan string, total int64, options ProcessingOptions) error {
 	// Implementation details for concurrent processing with:
 	// - Convert relative paths back to FileInfo using filesystem.Stat
 	// - Download with retry logic

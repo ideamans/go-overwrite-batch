@@ -8,7 +8,7 @@ UnifiedOverwriteBatchFlow (UOBF) は、様々なファイルシステム（ロ�
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              ProcessingWorkflow                             │
+│                              OverwriteWorkflow                              │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────────┐ ┌─────────┐ │
 │  │  ScanAndFilter  │  │  ProcessFiles    │  │  Logger         │ │  l10n   │ │
 │  │      Phase      │  │      Phase       │  │  Integration    │ │ Package │ │
@@ -35,12 +35,12 @@ UnifiedOverwriteBatchFlow (UOBF) は、様々なファイルシステム（ロ�
 
 ## コアコンポーネント
 
-### 1. ProcessingWorkflow (中央制御)
+### 1. OverwriteWorkflow (中央制御)
 
 **役割**: 全体のワークフロー制御と各コンポーネント間の調整
 
 ```go
-type ProcessingWorkflow struct {
+type OverwriteWorkflow struct {
     fs             FileSystem
     statusMemory   StatusMemory  
     backlogManager BacklogManager
@@ -373,7 +373,7 @@ func (c *CustomFileSystem) Walk(ctx context.Context, rootPath string, options Wa
 }
 
 // 既存コードは変更不要
-workflow := uobf.NewProcessingWorkflow(
+workflow := uobf.NewOverwriteWorkflow(
     &CustomFileSystem{}, // 新しい実装
     statusMemory,
     backlogManager,
@@ -432,7 +432,7 @@ func (d *DatabaseStatusMemory) NeedsProcessing(ctx context.Context, entries <-ch
 
 ```go
 // シャットダウン処理の例
-func (w *ProcessingWorkflow) Shutdown(ctx context.Context) error {
+func (w *OverwriteWorkflow) Shutdown(ctx context.Context) error {
     // 1. 新しいタスクの受付停止
     w.stopAcceptingNewTasks()
     
@@ -451,7 +451,7 @@ func (w *ProcessingWorkflow) Shutdown(ctx context.Context) error {
 
 ```go
 // アップロード処理では独立したコンテキストを使用
-func (w *ProcessingWorkflow) uploadFile(fileInfo FileInfo, localPath string) error {
+func (w *OverwriteWorkflow) uploadFile(fileInfo FileInfo, localPath string) error {
     // アップロード専用コンテキスト（キャンセル不可）
     uploadCtx := context.Background()
     

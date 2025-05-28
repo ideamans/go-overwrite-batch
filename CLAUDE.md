@@ -59,7 +59,7 @@ The system implements a two-phase workflow:
 
 ## Core Components
 
-- **ProcessingWorkflow**: Central orchestrator managing the complete workflow
+- **OverwriteWorkflow**: Central orchestrator managing the complete overwrite batch workflow
 - **FileSystem**: Interface abstracting different storage protocols (Local, FTP, SFTP, S3, WebDAV)
 - **StatusMemory**: Tracks file processing state using KVS to prevent duplicate processing
 - **BacklogManager**: Manages compressed backlog files containing lists of files to process
@@ -88,7 +88,7 @@ The main interface definitions are in `uobf.go:1-379`. Key interfaces:
 - `StatusMemory` interface: `uobf.go:90-103` - Processing state management  
 - `BacklogManager` interface: `uobf.go:110-124` - Compressed backlog file handling with gzip compression
 - `GzipBacklogManager` implementation: `backlog/gzip.go` - Concrete implementation using gzip compression
-- `ProcessingWorkflow` struct: `uobf.go:222-227` - Main workflow orchestrator
+- `OverwriteWorkflow` struct: `uobf.go:222-227` - Main overwrite workflow orchestrator
 
 The project uses a plugin architecture where different implementations of core interfaces can be swapped (filesystem types, status storage backends, etc.).
 

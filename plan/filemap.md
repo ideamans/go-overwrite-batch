@@ -8,7 +8,7 @@ unified-overwrite-batch-flow/
 ├── LICENSE
 │
 ├── uobf.go                     # メインのインターフェース定義 (上記のコード)
-├── workflow.go                 # ProcessingWorkflowの詳細実装
+├── workflow.go                 # OverwriteWorkflowの詳細実装
 ├── logger.go                   # Logger関連のユーティリティ
 ├── errors.go                   # エラー型とハンドリング
 │
