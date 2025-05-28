@@ -1,4 +1,4 @@
-module github.com/ideamans/go-unified-overwright-batch-flow
+module github.com/ideamans/go-unified-overwrite-batch-flow
 
 go 1.23.0
 

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ideamans/go-unified-overwright-batch-flow"
+	uobf "github.com/ideamans/go-unified-overwrite-batch-flow"
 )
 
 // LocalFileSystem implements FileSystem interface for local filesystem operations
@@ -100,7 +100,7 @@ func (l *LocalFileSystem) Walk(ctx context.Context, options uobf.WalkOptions, ch
 			l.logger.Warn("Failed to get relative path", "path", path, "error", err)
 			return nil
 		}
-		
+
 		// Skip root directory itself (empty relative path ".")
 		if relPath == "." {
 			return nil
@@ -291,7 +291,7 @@ func (l *LocalFileSystem) copyWithContext(ctx context.Context, dst io.Writer, sr
 func (l *LocalFileSystem) shouldIncludeFile(fileInfo uobf.FileInfo, options uobf.WalkOptions) bool {
 	// TODO: Implement pattern matching using open-match.dev/open-match
 	// For now, simple implementation that includes all files
-	
+
 	// If include patterns are specified, file must match at least one
 	if len(options.Include) > 0 {
 		matched := false

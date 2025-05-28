@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ideamans/go-unified-overwright-batch-flow"
+	uobf "github.com/ideamans/go-unified-overwrite-batch-flow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -217,7 +217,7 @@ func TestLocalFileSystem_Download(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				
+
 				// Verify file was copied correctly
 				downloadedContent, err := os.ReadFile(tt.localPath)
 				assert.NoError(t, err)
@@ -243,7 +243,7 @@ func TestLocalFileSystem_Download_ContextCancellation(t *testing.T) {
 
 	localPath := filepath.Join(tempDir, "downloaded.txt")
 	err = fs.Download(ctx, srcFile, localPath)
-	
+
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context canceled")
 
@@ -302,7 +302,7 @@ func TestLocalFileSystem_Upload(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, fileInfo)
-				
+
 				// Verify file info
 				assert.Equal(t, filepath.Base(tt.remotePath), fileInfo.Name)
 				assert.Equal(t, int64(len(content)), fileInfo.Size)
@@ -337,7 +337,7 @@ func TestLocalFileSystem_Upload_ContextCancellation(t *testing.T) {
 
 	remotePath := filepath.Join(tempDir, "uploaded.txt")
 	fileInfo, err := fs.Upload(ctx, srcFile, remotePath)
-	
+
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context canceled")
 	assert.Nil(t, fileInfo)

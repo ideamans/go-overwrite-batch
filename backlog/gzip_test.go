@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ideamans/go-unified-overwright-batch-flow/l10n"
+	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
 
 // testLogger implements Logger interface for testing
@@ -47,7 +47,7 @@ func TestGzipBacklogManager_WriteAndRead(t *testing.T) {
 
 	backlogPath := filepath.Join(tempDir, "test.backlog.gz")
 	manager := NewGzipBacklogManager(backlogPath)
-	
+
 	logger := &testLogger{}
 	manager.SetLogger(logger)
 
@@ -61,7 +61,7 @@ func TestGzipBacklogManager_WriteAndRead(t *testing.T) {
 	// Test writing
 	ctx := context.Background()
 	relPathChan := make(chan string, len(testRelPaths))
-	
+
 	for _, relPath := range testRelPaths {
 		relPathChan <- relPath
 	}
@@ -107,9 +107,9 @@ func TestGzipBacklogManager_WriteAndRead(t *testing.T) {
 			break
 		}
 		read := readRelPaths[i]
-		
+
 		if read != original {
-			t.Errorf("RelPath mismatch at index %d: expected %s, got %s", 
+			t.Errorf("RelPath mismatch at index %d: expected %s, got %s",
 				i, original, read)
 		}
 	}
@@ -191,14 +191,14 @@ func TestGzipBacklogManager_CancellationDuringWrite(t *testing.T) {
 
 	// Create context that will be cancelled
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Create channel with some data
 	relPathChan := make(chan string, 1)
 	relPathChan <- "file1.txt"
-	
+
 	// Cancel context immediately
 	cancel()
-	
+
 	// Writing should return context cancellation error
 	err = manager.StartWriting(ctx, relPathChan)
 	if err != context.Canceled {

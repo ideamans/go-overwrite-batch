@@ -39,9 +39,11 @@ go mod tidy
 # Testing Strategy
 
 ## Unit Tests
+
 Standard Go unit tests for individual components and interfaces.
 
 ## Integration Tests with Docker
+
 Remote filesystem implementations are tested using Docker containers:
 
 - **SFTP**: Uses `atmoz/sftp` container for SSH/SFTP server simulation
@@ -65,11 +67,13 @@ The system implements a two-phase workflow:
 ## Data Flow
 
 **Phase 1: Scan & Filter**
+
 ```
 FileSystem.Walk() → StatusMemory.NeedsProcessing() → BacklogManager.WriteBacklogFile()
 ```
 
 **Phase 2: Process Files**  
+
 ```
 BacklogManager.ReadBacklogFile() → Worker Pool → Download → Process → Upload → Status Update
 ```
@@ -93,7 +97,7 @@ The project uses a plugin architecture where different implementations of core i
 See `plan/filemap.md` for the planned directory structure. Implementation follows a package-per-concern pattern:
 
 - `filesystem/` - Storage protocol implementations
-- `status/` - State management backends 
+- `status/` - State management backends
 - `backlog/` - Backlog file formats (gzip-compressed JSON implementation)
 - `l10n/` - Localization infrastructure for multi-language support
 - `internal/` - Private utilities (worker pools, retry logic, progress tracking)
@@ -134,8 +138,9 @@ The project includes a comprehensive localization infrastructure (`l10n/` packag
 **IMPORTANT**: All components should actively use the l10n package for user-facing messages:
 
 ### In Log Messages
+
 ```go
-import "github.com/ideamans/go-unified-overwright-batch-flow/l10n"
+import "github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 
 // Use T() function for all log messages
 logger.Info(l10n.T("Starting file processing"), "count", fileCount)
@@ -143,6 +148,7 @@ logger.Error(l10n.T("Failed to connect to filesystem"), "error", err)
 ```
 
 ### In Error Messages
+
 ```go
 // Use T() for error messages that may be shown to users
 return fmt.Errorf(l10n.T("file not found: %s"), filename)
@@ -153,6 +159,7 @@ return &NetworkError{
 ```
 
 ### Registering Custom Translations
+
 ```go
 // Register translations in init function to avoid duplicate registration
 func init() {
@@ -168,6 +175,7 @@ func init() {
 ## Implementation Requirements
 
 **All new code must:**
+
 1. Import and use the `l10n` package for any user-facing text
 2. Wrap log messages and error strings with `l10n.T()`
 3. Register appropriate translations for Japanese (ja) language in `init()` function
@@ -175,6 +183,7 @@ func init() {
 5. Keep phrases concise and context-appropriate
 
 **For existing code:**
+
 - Gradually migrate existing hardcoded strings to use `l10n.T()`
 - Prioritize user-facing errors and important log messages
 - Add Japanese translations for commonly seen messages
@@ -182,6 +191,7 @@ func init() {
 ## Language Detection
 
 The system automatically detects the user's language preference on initialization:
+
 - Checks environment variables in order: `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`
 - Uses `golang.org/x/text/language` for robust language matching
 - Defaults to English if no supported language is detected
@@ -234,6 +244,7 @@ Located in `backlog/gzip.go`, provides:
 - **Buffered I/O**: Uses buffered readers/writers for improved performance
 
 ### Usage Example
+
 ```go
 backlogPath := "/tmp/processing.backlog.gz"
 manager := backlog.NewGzipBacklogManager(backlogPath)
@@ -260,7 +271,9 @@ count, err := manager.CountRelPaths(ctx)
 ```
 
 ### File Format
+
 Backlog files use gzip-compressed text with one relative path per line:
+
 ```
 file1.txt
 dir/file2.txt
@@ -277,14 +290,17 @@ The system supports graceful shutdown with special handling for upload operation
 - **Resource Cleanup**: Filesystem connections and temporary files are properly cleaned up
 
 # important-instruction-reminders
+
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 
 ## Localization Requirements
+
 ALWAYS use the l10n package for any user-facing text in code:
-- Import `github.com/ideamans/go-unified-overwright-batch-flow/l10n` in all components
+
+- Import `github.com/ideamans/go-unified-overwrite-batch-flow/l10n` in all components
 - Wrap all log messages with `l10n.T("message")`
 - Wrap all error messages with `l10n.T("error message")`
 - Register Japanese translations using `l10n.Register("ja", l10n.LexiconMap{...})` in `init()` function
