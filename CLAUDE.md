@@ -82,13 +82,30 @@ See `plan/architecture.md` for detailed architecture documentation.
 
 # Code Structure
 
-The main interface definitions are in `uobf.go:1-379`. Key interfaces:
+The project follows a clean architecture with shared utilities in the `common` package:
 
-- `FileSystem` interface: `uobf.go:68-83` - Unified filesystem operations
-- `StatusMemory` interface: `uobf.go:90-103` - Processing state management  
-- `BacklogManager` interface: `uobf.go:110-124` - Compressed backlog file handling with gzip compression
-- `GzipBacklogManager` implementation: `backlog/gzip.go` - Concrete implementation using gzip compression
-- `OverwriteWorkflow` struct: `uobf.go:222-227` - Main overwrite workflow orchestrator
+## Core Interfaces (uobf.go)
+
+- `FileSystem` interface - Unified filesystem operations
+- `StatusMemory` interface - Processing state management  
+- `BacklogManager` interface - Compressed backlog file handling
+- `OverwriteWorkflow` struct - Main workflow orchestrator (implementation in workflow.go)
+
+## Common Utilities (common/utils.go)
+
+- `Logger` interface - Structured logging interface compatible with popular Go loggers
+- `NoOpLogger` - No-operation logger for testing or when logging is disabled
+- `RetryExecutor` - Retry logic for network operations with exponential backoff
+- `RetryableError` interface - Distinguishes retryable errors from permanent failures
+- `NetworkError` - Network-specific error with retry capability
+
+## Implementations
+
+- `backlog/gzip.go` - Gzip-compressed text backlog manager
+- `backlog/memory.go` - In-memory backlog manager for testing
+- `filesystem/local.go` - Local filesystem implementation
+- `status/memory.go` - In-memory status memory implementation
+- `workflow.go` - Complete OverwriteWorkflow implementation
 
 The project uses a plugin architecture where different implementations of core interfaces can be swapped (filesystem types, status storage backends, etc.).
 
