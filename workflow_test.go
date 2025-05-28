@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 )
 
 // Mock implementations for testing
@@ -15,7 +17,7 @@ type MockFileSystem struct {
 	DownloadFunc func(ctx context.Context, remotePath, localPath string) error
 	UploadFunc   func(ctx context.Context, localPath, remotePath string) (*FileInfo, error)
 	CloseFunc    func() error
-	SetLoggerFunc func(logger Logger)
+	SetLoggerFunc func(logger common.Logger)
 }
 
 func (m *MockFileSystem) Walk(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error {
@@ -53,7 +55,7 @@ func (m *MockFileSystem) Close() error {
 	return nil
 }
 
-func (m *MockFileSystem) SetLogger(logger Logger) {
+func (m *MockFileSystem) SetLogger(logger common.Logger) {
 	if m.SetLoggerFunc != nil {
 		m.SetLoggerFunc(logger)
 	}
@@ -64,7 +66,7 @@ type MockStatusMemory struct {
 	NeedsProcessingFunc func(ctx context.Context, entries <-chan FileInfo) (<-chan FileInfo, error)
 	ReportDoneFunc      func(ctx context.Context, fileInfo FileInfo) error
 	ReportErrorFunc     func(ctx context.Context, fileInfo FileInfo, err error) error
-	SetLoggerFunc       func(logger Logger)
+	SetLoggerFunc       func(logger common.Logger)
 }
 
 func (m *MockStatusMemory) NeedsProcessing(ctx context.Context, entries <-chan FileInfo) (<-chan FileInfo, error) {
@@ -101,7 +103,7 @@ func (m *MockStatusMemory) ReportError(ctx context.Context, fileInfo FileInfo, e
 	return nil
 }
 
-func (m *MockStatusMemory) SetLogger(logger Logger) {
+func (m *MockStatusMemory) SetLogger(logger common.Logger) {
 	if m.SetLoggerFunc != nil {
 		m.SetLoggerFunc(logger)
 	}
@@ -112,7 +114,7 @@ type MockBacklogManager struct {
 	StartWritingFunc  func(ctx context.Context, relPaths <-chan string) error
 	StartReadingFunc  func(ctx context.Context) (<-chan string, error)
 	CountRelPathsFunc func(ctx context.Context) (int64, error)
-	SetLoggerFunc     func(logger Logger)
+	SetLoggerFunc     func(logger common.Logger)
 }
 
 func (m *MockBacklogManager) StartWriting(ctx context.Context, relPaths <-chan string) error {
@@ -149,7 +151,7 @@ func (m *MockBacklogManager) CountRelPaths(ctx context.Context) (int64, error) {
 	return 0, nil
 }
 
-func (m *MockBacklogManager) SetLogger(logger Logger) {
+func (m *MockBacklogManager) SetLogger(logger common.Logger) {
 	if m.SetLoggerFunc != nil {
 		m.SetLoggerFunc(logger)
 	}
@@ -186,12 +188,12 @@ func createTestFileInfos(count int) []FileInfo {
 
 var (
 	testError = errors.New("test error")
-	retryableTestError = &NetworkError{
+	retryableTestError = &common.NetworkError{
 		Operation:   "test operation",
 		Cause:       errors.New("network timeout"),
 		ShouldRetry: true,
 	}
-	nonRetryableTestError = &NetworkError{
+	nonRetryableTestError = &common.NetworkError{
 		Operation:   "test operation", 
 		Cause:       errors.New("authentication failed"),
 		ShouldRetry: false,
@@ -543,20 +545,20 @@ func TestOverwriteWorkflow_SetLogger(t *testing.T) {
 	workflow, fs, status, backlog := createTestWorkflow()
 	
 	// Create test logger
-	testLogger := &NoOpLogger{}
+	testLogger := &common.NoOpLogger{}
 	
 	// Mock SetLogger calls to verify they're called
 	var fsLoggerSet, statusLoggerSet, backlogLoggerSet bool
 	
-	fs.SetLoggerFunc = func(logger Logger) {
+	fs.SetLoggerFunc = func(logger common.Logger) {
 		fsLoggerSet = true
 	}
 	
-	status.SetLoggerFunc = func(logger Logger) {
+	status.SetLoggerFunc = func(logger common.Logger) {
 		statusLoggerSet = true
 	}
 	
-	backlog.SetLoggerFunc = func(logger Logger) {
+	backlog.SetLoggerFunc = func(logger common.Logger) {
 		backlogLoggerSet = true
 	}
 	

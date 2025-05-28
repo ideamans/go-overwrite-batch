@@ -8,20 +8,21 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	uobf "github.com/ideamans/go-unified-overwrite-batch-flow"
 )
 
 // LocalFileSystem implements FileSystem interface for local filesystem operations
 type LocalFileSystem struct {
 	rootPath string
-	logger   uobf.Logger
+	logger   common.Logger
 }
 
 // NewLocalFileSystem creates a new LocalFileSystem instance with the specified root path
 func NewLocalFileSystem(rootPath string) *LocalFileSystem {
 	return &LocalFileSystem{
 		rootPath: filepath.Clean(rootPath),
-		logger:   &uobf.NoOpLogger{},
+		logger:   &common.NoOpLogger{},
 	}
 }
 
@@ -31,7 +32,7 @@ func (l *LocalFileSystem) Close() error {
 }
 
 // SetLogger sets the logger for the local filesystem
-func (l *LocalFileSystem) SetLogger(logger uobf.Logger) {
+func (l *LocalFileSystem) SetLogger(logger common.Logger) {
 	l.logger = logger
 }
 

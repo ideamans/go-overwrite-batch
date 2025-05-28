@@ -26,8 +26,6 @@ type FileInfo struct {
 	AbsPath string    `json:"abs_path"` // Absolute path
 }
 
-// Logger is an alias for common.Logger to maintain API compatibility
-type Logger = common.Logger
 
 // =============================================================================
 // Filesystem Interface
@@ -66,7 +64,7 @@ type FileSystem interface {
 	Upload(ctx context.Context, localPath, remotePath string) (*FileInfo, error)
 
 	// SetLogger sets the logger for the filesystem implementation
-	SetLogger(logger Logger)
+	SetLogger(logger common.Logger)
 }
 
 // =============================================================================
@@ -86,7 +84,7 @@ type StatusMemory interface {
 	ReportError(ctx context.Context, fileInfo FileInfo, err error) error
 
 	// SetLogger sets the logger for the status memory
-	SetLogger(logger Logger)
+	SetLogger(logger common.Logger)
 }
 
 // =============================================================================
@@ -106,7 +104,7 @@ type BacklogManager interface {
 	CountRelPaths(ctx context.Context) (int64, error)
 
 	// SetLogger sets the logger for the backlog manager
-	SetLogger(logger Logger)
+	SetLogger(logger common.Logger)
 }
 
 // =============================================================================
@@ -159,41 +157,9 @@ type ProcessingOptions struct {
 }
 
 // =============================================================================
-// Error Types
-// =============================================================================
-
-
-// NetworkError represents network-related errors that may be retried
-type NetworkError struct {
-	Operation   string
-	Cause       error
-	ShouldRetry bool
-}
-
-func (e *NetworkError) Error() string {
-	return e.Operation + ": " + e.Cause.Error()
-}
-
-func (e *NetworkError) IsRetryable() bool {
-	return e.ShouldRetry
-}
-
-// =============================================================================
 // Main Workflow
 // =============================================================================
 
 // OverwriteWorkflow manages the complete overwrite batch workflow
 // Implementation is in workflow.go
 
-// =============================================================================
-// Utility Implementations
-// =============================================================================
-
-// NoOpLogger is an alias for common.NoOpLogger to maintain API compatibility
-type NoOpLogger = common.NoOpLogger
-
-// RetryExecutor is an alias for common.RetryExecutor to maintain API compatibility
-type RetryExecutor = common.RetryExecutor
-
-// RetryableError is an alias for common.RetryableError to maintain API compatibility
-type RetryableError = common.RetryableError

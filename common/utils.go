@@ -39,6 +39,21 @@ type RetryableError interface {
 	IsRetryable() bool
 }
 
+// NetworkError represents network-related errors that may be retried
+type NetworkError struct {
+	Operation   string
+	Cause       error
+	ShouldRetry bool
+}
+
+func (e *NetworkError) Error() string {
+	return e.Operation + ": " + e.Cause.Error()
+}
+
+func (e *NetworkError) IsRetryable() bool {
+	return e.ShouldRetry
+}
+
 // RetryExecutor handles retry logic for network operations
 type RetryExecutor struct {
 	MaxRetries int

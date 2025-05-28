@@ -168,3 +168,64 @@ func TestNoOpLogger(t *testing.T) {
 		t.Error("Expected WithFields to return the same NoOpLogger instance")
 	}
 }
+
+func TestNetworkError(t *testing.T) {
+	err := &NetworkError{
+		Operation:   "download",
+		Cause:       errors.New("connection timeout"),
+		ShouldRetry: true,
+	}
+
+	// Test Error() method
+	expectedMsg := "download: connection timeout"
+	if err.Error() != expectedMsg {
+		t.Errorf("Expected error message %q, got %q", expectedMsg, err.Error())
+	}
+
+	// Test IsRetryable() method
+	if !err.IsRetryable() {
+		t.Error("Expected error to be retryable")
+	}
+
+	// Test non-retryable NetworkError
+	nonRetryableErr := &NetworkError{
+		Operation:   "upload",
+		Cause:       errors.New("permission denied"),
+		ShouldRetry: false,
+	}
+
+	if nonRetryableErr.IsRetryable() {
+		t.Error("Expected error to not be retryable")
+	}
+}
+
+func TestRetryExecutor_WithNetworkError(t *testing.T) {
+	executor := &RetryExecutor{
+		MaxRetries: 2,
+		Delay:      time.Millisecond * 10,
+	}
+
+	called := 0
+	operation := func() error {
+		called++
+		if called < 3 {
+			return &NetworkError{
+				Operation:   "network operation",
+				Cause:       errors.New("network error"),
+				ShouldRetry: true,
+			}
+		}
+		return nil
+	}
+
+	ctx := context.Background()
+	err := executor.Execute(ctx, operation)
+
+	if err != nil {
+		t.Errorf("Expected no error after retries, got: %v", err)
+	}
+
+	if called != 3 {
+		t.Errorf("Expected operation to be called 3 times, got: %d", called)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
 
@@ -46,7 +47,7 @@ type OverwriteWorkflow struct {
 	fs             FileSystem
 	statusMemory   StatusMemory
 	backlogManager BacklogManager
-	logger         Logger
+	logger         common.Logger
 }
 
 // NewOverwriteWorkflow creates a new overwrite workflow instance
@@ -55,12 +56,12 @@ func NewOverwriteWorkflow(fs FileSystem, statusMemory StatusMemory, backlogManag
 		fs:             fs,
 		statusMemory:   statusMemory,
 		backlogManager: backlogManager,
-		logger:         &NoOpLogger{}, // Default to no-op logger
+		logger:         &common.NoOpLogger{}, // Default to no-op logger
 	}
 }
 
 // SetLogger sets the logger for the workflow and propagates it to sub-components
-func (w *OverwriteWorkflow) SetLogger(logger Logger) {
+func (w *OverwriteWorkflow) SetLogger(logger common.Logger) {
 	w.logger = logger
 	w.fs.SetLogger(logger.WithFields(map[string]interface{}{"component": "filesystem"}))
 	w.statusMemory.SetLogger(logger.WithFields(map[string]interface{}{"component": "status_memory"}))
@@ -167,7 +168,7 @@ func (w *OverwriteWorkflow) processWithConcurrency(ctx context.Context, relPaths
 	doneChan := make(chan struct{})
 	
 	var processed int64
-	retryExecutor := &RetryExecutor{
+	retryExecutor := &common.RetryExecutor{
 		MaxRetries: options.RetryCount,
 		Delay:      options.RetryDelay,
 	}
@@ -219,7 +220,7 @@ func (w *OverwriteWorkflow) processWithConcurrency(ctx context.Context, relPaths
 }
 
 // processFile handles the processing of a single file
-func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, retryExecutor *RetryExecutor, processFunc ProcessFunc) error {
+func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, retryExecutor *common.RetryExecutor, processFunc ProcessFunc) error {
 	w.logger.Debug(l10n.T("Starting file processing"), "rel_path", relPath)
 	
 	// Create FileInfo for the relative path (simplified - would need filesystem.Stat in real implementation)

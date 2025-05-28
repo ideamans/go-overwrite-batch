@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	uobf "github.com/ideamans/go-unified-overwrite-batch-flow"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
@@ -25,19 +26,19 @@ type FileStatus struct {
 type MemoryStatusMemory struct {
 	mu     sync.RWMutex
 	status map[string]*FileStatus // key: RelPath, value: FileStatus
-	logger uobf.Logger
+	logger common.Logger
 }
 
 // NewMemoryStatusMemory creates a new MemoryStatusMemory instance
 func NewMemoryStatusMemory() *MemoryStatusMemory {
 	return &MemoryStatusMemory{
 		status: make(map[string]*FileStatus),
-		logger: &uobf.NoOpLogger{},
+		logger: &common.NoOpLogger{},
 	}
 }
 
 // SetLogger sets the logger for the memory status memory
-func (m *MemoryStatusMemory) SetLogger(logger uobf.Logger) {
+func (m *MemoryStatusMemory) SetLogger(logger common.Logger) {
 	m.logger = logger
 }
 

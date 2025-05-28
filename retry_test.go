@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 )
 
 // testRetryableError implements RetryableError for testing
@@ -31,7 +33,7 @@ func (e *testNonRetryableError) Error() string {
 }
 
 func TestRetryExecutor_SuccessfulOperation(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 3,
 		Delay:      10 * time.Millisecond,
 	}
@@ -55,7 +57,7 @@ func TestRetryExecutor_SuccessfulOperation(t *testing.T) {
 }
 
 func TestRetryExecutor_RetryableErrorWithSuccess(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 3,
 		Delay:      10 * time.Millisecond,
 	}
@@ -93,7 +95,7 @@ func TestRetryExecutor_RetryableErrorWithSuccess(t *testing.T) {
 }
 
 func TestRetryExecutor_RetryableErrorExceedsMaxRetries(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 2,
 		Delay:      5 * time.Millisecond,
 	}
@@ -124,7 +126,7 @@ func TestRetryExecutor_RetryableErrorExceedsMaxRetries(t *testing.T) {
 }
 
 func TestRetryExecutor_NonRetryableError(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 3,
 		Delay:      10 * time.Millisecond,
 	}
@@ -152,7 +154,7 @@ func TestRetryExecutor_NonRetryableError(t *testing.T) {
 }
 
 func TestRetryExecutor_RegularError(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 3,
 		Delay:      10 * time.Millisecond,
 	}
@@ -178,7 +180,7 @@ func TestRetryExecutor_RegularError(t *testing.T) {
 }
 
 func TestRetryExecutor_RetryableErrorSetToFalse(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 3,
 		Delay:      10 * time.Millisecond,
 	}
@@ -207,7 +209,7 @@ func TestRetryExecutor_RetryableErrorSetToFalse(t *testing.T) {
 }
 
 func TestRetryExecutor_ContextCancellation(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 5,
 		Delay:      50 * time.Millisecond, // Long delay to ensure cancellation
 	}
@@ -242,7 +244,7 @@ func TestRetryExecutor_ContextCancellation(t *testing.T) {
 }
 
 func TestRetryExecutor_ContextTimeout(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 5,
 		Delay:      20 * time.Millisecond,
 	}
@@ -277,7 +279,7 @@ func TestRetryExecutor_ContextTimeout(t *testing.T) {
 }
 
 func TestRetryExecutor_ZeroMaxRetries(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 0,
 		Delay:      10 * time.Millisecond,
 	}
@@ -306,7 +308,7 @@ func TestRetryExecutor_ZeroMaxRetries(t *testing.T) {
 }
 
 func TestRetryExecutor_MixedErrorTypes(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 3,
 		Delay:      5 * time.Millisecond,
 	}
@@ -341,13 +343,13 @@ func TestRetryExecutor_MixedErrorTypes(t *testing.T) {
 }
 
 func TestRetryExecutor_NetworkErrorType(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 2,
 		Delay:      5 * time.Millisecond,
 	}
 
 	callCount := 0
-	networkErr := &NetworkError{
+	networkErr := &common.NetworkError{
 		Operation:   "upload",
 		Cause:       errors.New("connection timeout"),
 		ShouldRetry: true,
@@ -374,13 +376,13 @@ func TestRetryExecutor_NetworkErrorType(t *testing.T) {
 }
 
 func TestRetryExecutor_NetworkErrorNonRetryable(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 3,
 		Delay:      5 * time.Millisecond,
 	}
 
 	callCount := 0
-	networkErr := &NetworkError{
+	networkErr := &common.NetworkError{
 		Operation:   "upload",
 		Cause:       errors.New("authentication failed"),
 		ShouldRetry: false,
@@ -404,7 +406,7 @@ func TestRetryExecutor_NetworkErrorNonRetryable(t *testing.T) {
 }
 
 func TestRetryExecutor_DelayTimingAccuracy(t *testing.T) {
-	executor := &RetryExecutor{
+	executor := &common.RetryExecutor{
 		MaxRetries: 2,
 		Delay:      100 * time.Millisecond,
 	}

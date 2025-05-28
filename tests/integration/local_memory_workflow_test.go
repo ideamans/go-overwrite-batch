@@ -12,6 +12,7 @@ import (
 
 	"github.com/ideamans/go-unified-overwrite-batch-flow"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/backlog"
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/filesystem"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/status"
@@ -26,8 +27,8 @@ type memoryBacklogWrapper struct {
 	*backlog.MemoryBacklogManager
 }
 
-func (w *memoryBacklogWrapper) SetLogger(logger uobf.Logger) {
-	// Convert uobf.Logger to backlog.Logger and set it
+func (w *memoryBacklogWrapper) SetLogger(logger common.Logger) {
+	// Set common.Logger directly
 	w.MemoryBacklogManager.SetLogger(logger)
 }
 
@@ -63,7 +64,7 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	defer cancel()
 	
 	// Create components
-	logger := &uobf.NoOpLogger{}
+	logger := &common.NoOpLogger{}
 	
 	localFS := filesystem.NewLocalFileSystem(tempDir)
 	localFS.SetLogger(logger)
