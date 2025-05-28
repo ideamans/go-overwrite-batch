@@ -22,14 +22,19 @@ func init() {
 	l10n.ForceLanguage("en")
 }
 
-// memoryBacklogWrapper wraps MemoryBacklogManager to implement uobf.BacklogManager
-type memoryBacklogWrapper struct {
-	*backlog.MemoryBacklogManager
-}
-
-func (w *memoryBacklogWrapper) SetLogger(logger common.Logger) {
-	// Set common.Logger directly
-	w.MemoryBacklogManager.SetLogger(logger)
+// uppercaseProcessFunc converts file content to uppercase
+func uppercaseProcessFunc(ctx context.Context, localPath string) (string, error) {
+	content, err := os.ReadFile(localPath)
+	if err != nil {
+		return "", err
+	}
+	
+	upperContent := strings.ToUpper(string(content))
+	if err := os.WriteFile(localPath, []byte(upperContent), 0644); err != nil {
+		return "", err
+	}
+	
+	return localPath, nil
 }
 
 func TestLocalMemoryWorkflowIntegration(t *testing.T) {
@@ -72,10 +77,12 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	statusMemory := status.NewMemoryStatusMemory()
 	statusMemory.SetLogger(logger)
 	
-	memoryBacklog1 := &memoryBacklogWrapper{backlog.NewMemoryBacklogManager()}
-	memoryBacklog1.SetLogger(logger)
+	// Use GzipBacklogManager for more realistic testing
+	backlog1Path := filepath.Join(tempDir, "backlog1.txt.gz")
+	gzipBacklog1 := backlog.NewGzipBacklogManager(backlog1Path)
+	gzipBacklog1.SetLogger(logger)
 	
-	workflow1 := uobf.NewOverwriteWorkflow(localFS, statusMemory, memoryBacklog1)
+	workflow1 := uobf.NewOverwriteWorkflow(localFS, statusMemory, gzipBacklog1)
 	workflow1.SetLogger(logger)
 
 	// Configure scan options
@@ -93,39 +100,26 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 		t.Fatalf("First ScanAndFilter failed: %v", err)
 	}
 
-	// Verify first backlog contains all files
-	backlog1Entries := memoryBacklog1.GetEntries()
-	if len(backlog1Entries) != len(testFiles) {
-		t.Errorf("Expected %d entries in first backlog, got %d", len(testFiles), len(backlog1Entries))
-		t.Logf("Backlog1 entries: %v", backlog1Entries)
+	// Verify first backlog contains all files by counting entries
+	backlog1Count, err := gzipBacklog1.CountRelPaths(ctx)
+	if err != nil {
+		t.Fatalf("Failed to count backlog1 entries: %v", err)
+	}
+	if int(backlog1Count) != len(testFiles) {
+		t.Errorf("Expected %d entries in first backlog, got %d", len(testFiles), int(backlog1Count))
 	}
 
-	// Step 3: Manually convert files to uppercase to simulate processing
-	for filePath, originalContent := range testFiles {
-		fullPath := filepath.Join(tempDir, filePath)
-		upperContent := strings.ToUpper(originalContent)
-		if err := os.WriteFile(fullPath, []byte(upperContent), 0644); err != nil {
-			t.Fatalf("Failed to update file %s: %v", filePath, err)
-		}
-		
-		// Update status memory to mark as processed
-		stat, err := os.Stat(fullPath)
-		if err != nil {
-			t.Fatalf("Failed to stat file %s: %v", fullPath, err)
-		}
-		
-		fileInfo := uobf.FileInfo{
-			Name:    filepath.Base(filePath),
-			Size:    stat.Size(),
-			Mode:    uint32(stat.Mode()),
-			ModTime: stat.ModTime(),
-			IsDir:   stat.IsDir(),
-			RelPath: filePath,
-			AbsPath: fullPath,
-		}
-		if err := statusMemory.ReportDone(ctx, fileInfo); err != nil {
-			t.Fatalf("Failed to mark file as processed: %v", err)
-		}
+	// Step 3: Process files with concurrency 2 using ProcessFiles
+	processOptions1 := uobf.ProcessingOptions{
+		Concurrency:    2,
+		RetryCount:     3,
+		RetryDelay:     100 * time.Millisecond,
+		ProgressEach:   1,
+		ProcessFunc:    uppercaseProcessFunc,
+	}
+	
+	if err := workflow1.ProcessFiles(ctx, processOptions1); err != nil {
+		t.Fatalf("First ProcessFiles failed: %v", err)
 	}
 
 	// Step 4: Add new files and modify existing file
@@ -156,10 +150,11 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	}
 
 	// Step 5: Second scan run
-	memoryBacklog2 := &memoryBacklogWrapper{backlog.NewMemoryBacklogManager()}
-	memoryBacklog2.SetLogger(logger)
+	backlog2Path := filepath.Join(tempDir, "backlog2.txt.gz")
+	gzipBacklog2 := backlog.NewGzipBacklogManager(backlog2Path)
+	gzipBacklog2.SetLogger(logger)
 	
-	workflow2 := uobf.NewOverwriteWorkflow(localFS, statusMemory, memoryBacklog2)
+	workflow2 := uobf.NewOverwriteWorkflow(localFS, statusMemory, gzipBacklog2)
 	workflow2.SetLogger(logger)
 
 	// Run second scan
@@ -168,7 +163,10 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	}
 
 	// Step 6: Verify second backlog contains only changed files
-	backlog2Entries := memoryBacklog2.GetEntries()
+	backlog2Count, err := gzipBacklog2.CountRelPaths(ctx)
+	if err != nil {
+		t.Fatalf("Failed to count backlog2 entries: %v", err)
+	}
 	
 	expectedChangedFiles := []string{
 		modifiedFile,
@@ -176,13 +174,22 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 		"newfile2.txt",
 	}
 
-	if len(backlog2Entries) != len(expectedChangedFiles) {
+	if int(backlog2Count) != len(expectedChangedFiles) {
 		t.Errorf("Expected %d entries in second backlog, got %d", 
-			len(expectedChangedFiles), len(backlog2Entries))
-		t.Errorf("Backlog2 entries: %v", backlog2Entries)
+			len(expectedChangedFiles), int(backlog2Count))
 	}
 
 	// Verify that backlog2 contains exactly the expected files
+	backlog2Ch, err := gzipBacklog2.StartReading(ctx)
+	if err != nil {
+		t.Fatalf("Failed to read backlog2: %v", err)
+	}
+	
+	backlog2Entries := make([]string, 0)
+	for entry := range backlog2Ch {
+		backlog2Entries = append(backlog2Entries, entry)
+	}
+	
 	backlog2Set := make(map[string]bool)
 	for _, entry := range backlog2Entries {
 		backlog2Set[entry] = true
@@ -194,24 +201,17 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 		}
 	}
 
-	// Step 7: Manually process the changed files to simulate the processing phase
-	for filePath := range newFiles {
-		fullPath := filepath.Join(tempDir, filePath)
-		content, err := os.ReadFile(fullPath)
-		if err != nil {
-			t.Fatalf("Failed to read new file %s: %v", filePath, err)
-		}
-		upperContent := strings.ToUpper(string(content))
-		if err := os.WriteFile(fullPath, []byte(upperContent), 0644); err != nil {
-			t.Fatalf("Failed to update new file %s: %v", filePath, err)
-		}
+	// Step 7: Process changed files with concurrency 1 using ProcessFiles
+	processOptions2 := uobf.ProcessingOptions{
+		Concurrency:    1,
+		RetryCount:     3,
+		RetryDelay:     100 * time.Millisecond,
+		ProgressEach:   1,
+		ProcessFunc:    uppercaseProcessFunc,
 	}
-
-	// Process modified file
-	modifiedPath = filepath.Join(tempDir, modifiedFile)
-	upperModifiedContent := strings.ToUpper(modifiedContent)
-	if err := os.WriteFile(modifiedPath, []byte(upperModifiedContent), 0644); err != nil {
-		t.Fatalf("Failed to update modified file %s: %v", modifiedFile, err)
+	
+	if err := workflow2.ProcessFiles(ctx, processOptions2); err != nil {
+		t.Fatalf("Second ProcessFiles failed: %v", err)
 	}
 
 	// Step 8: Verify all files now have uppercase content
@@ -242,14 +242,14 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	}
 
 	t.Logf("Integration test completed successfully")
-	t.Logf("First backlog processed %d files", len(backlog1Entries))
-	t.Logf("Second backlog processed %d files (only changed files)", len(backlog2Entries))
+	t.Logf("First backlog processed %d files", backlog1Count)
+	t.Logf("Second backlog processed %d files (only changed files)", backlog2Count)
 	
 	// Verify the core functionality: incremental processing
-	if len(backlog2Entries) == 3 && len(backlog1Entries) == 5 {
+	if backlog2Count == 3 && backlog1Count == 5 {
 		t.Logf("✅ Incremental processing works correctly:")
-		t.Logf("   - First run: processed all %d files", len(backlog1Entries))
-		t.Logf("   - Second run: processed only %d changed files", len(backlog2Entries))
+		t.Logf("   - First run: processed all %d files", backlog1Count)
+		t.Logf("   - Second run: processed only %d changed files", backlog2Count)
 		t.Logf("   - Changed files: %v", backlog2Entries)
 	} else {
 		t.Errorf("❌ Incremental processing failed")

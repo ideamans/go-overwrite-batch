@@ -223,12 +223,12 @@ func (w *OverwriteWorkflow) processWithConcurrency(ctx context.Context, relPaths
 func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, retryExecutor *common.RetryExecutor, processFunc ProcessFunc) error {
 	w.logger.Debug(l10n.T("Starting file processing"), "rel_path", relPath)
 	
-	// Create FileInfo for the relative path (simplified - would need filesystem.Stat in real implementation)
+	// Create FileInfo for the relative path
 	fileInfo := FileInfo{
 		Name:    filepath.Base(relPath),
 		RelPath: relPath,
-		AbsPath: filepath.Join("/", relPath), // Simplified absolute path
-		Size:    0,                           // Would be populated by filesystem.Stat
+		AbsPath: relPath, // For LocalFileSystem, this should be treated as the remote path
+		Size:    0,       // Would be populated by filesystem.Stat in real implementation
 		ModTime: time.Now(),
 		IsDir:   false,
 	}

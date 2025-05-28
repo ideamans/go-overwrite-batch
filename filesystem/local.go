@@ -137,6 +137,11 @@ func (l *LocalFileSystem) Walk(ctx context.Context, options uobf.WalkOptions, ch
 func (l *LocalFileSystem) Download(ctx context.Context, remotePath, localPath string) error {
 	l.logger.Debug("Starting file download", "remote_path", remotePath, "local_path", localPath)
 
+	// Convert relative path to absolute path if needed
+	if !filepath.IsAbs(remotePath) {
+		remotePath = filepath.Join(l.rootPath, remotePath)
+	}
+
 	// Clean paths
 	remotePath = filepath.Clean(remotePath)
 	localPath = filepath.Clean(localPath)
@@ -179,6 +184,11 @@ func (l *LocalFileSystem) Download(ctx context.Context, remotePath, localPath st
 // Upload uploads a local file to the filesystem and returns the uploaded file info (essentially a copy operation)
 func (l *LocalFileSystem) Upload(ctx context.Context, localPath, remotePath string) (*uobf.FileInfo, error) {
 	l.logger.Debug("Starting file upload", "local_path", localPath, "remote_path", remotePath)
+
+	// Convert relative path to absolute path if needed
+	if !filepath.IsAbs(remotePath) {
+		remotePath = filepath.Join(l.rootPath, remotePath)
+	}
 
 	// Clean paths
 	localPath = filepath.Clean(localPath)
