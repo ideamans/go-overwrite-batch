@@ -153,13 +153,15 @@ return &NetworkError{
 
 ### Registering Custom Translations
 ```go
-// Register additional translations for your component
-l10n.Register("ja", l10n.LexiconMap{
-    "Starting file processing": "ファイル処理を開始します",
-    "Failed to connect to filesystem": "ファイルシステムへの接続に失敗しました",
-    "file not found: %s": "ファイルが見つかりません: %s",
-    "download": "ダウンロード",
-})
+// Register translations in init function to avoid duplicate registration
+func init() {
+    l10n.Register("ja", l10n.LexiconMap{
+        "Starting file processing": "ファイル処理を開始します",
+        "Failed to connect to filesystem": "ファイルシステムへの接続に失敗しました",
+        "file not found: %s": "ファイルが見つかりません: %s",
+        "download": "ダウンロード",
+    })
+}
 ```
 
 ## Implementation Requirements
@@ -167,7 +169,7 @@ l10n.Register("ja", l10n.LexiconMap{
 **All new code must:**
 1. Import and use the `l10n` package for any user-facing text
 2. Wrap log messages and error strings with `l10n.T()`
-3. Register appropriate translations for Japanese (ja) language
+3. Register appropriate translations for Japanese (ja) language in `init()` function
 4. Use English as the base phrase in `T()` calls
 5. Keep phrases concise and context-appropriate
 
@@ -206,5 +208,5 @@ ALWAYS use the l10n package for any user-facing text in code:
 - Import `github.com/ideamans/go-unified-overwright-batch-flow/l10n` in all components
 - Wrap all log messages with `l10n.T("message")`
 - Wrap all error messages with `l10n.T("error message")`
-- Register Japanese translations using `l10n.Register("ja", l10n.LexiconMap{...})`
+- Register Japanese translations using `l10n.Register("ja", l10n.LexiconMap{...})` in `init()` function
 - Use English as the base phrase in all `l10n.T()` calls

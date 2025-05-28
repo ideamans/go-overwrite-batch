@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ideamans/go-unified-overwright-batch-flow"
+	"github.com/ideamans/go-unified-overwright-batch-flow/l10n"
 )
 
 // FileStatus represents the processing status of a file
@@ -46,7 +47,7 @@ func (m *MemoryStatusMemory) SetLogger(logger uobf.Logger) {
 // 2. ModTime is different from stored value
 // 3. Size is different from stored value
 func (m *MemoryStatusMemory) NeedsProcessing(ctx context.Context, entries <-chan uobf.FileInfo) (<-chan uobf.FileInfo, error) {
-	m.logger.Debug("Starting needs processing evaluation")
+	m.logger.Debug(l10n.T("Starting needs processing evaluation"))
 	
 	resultCh := make(chan uobf.FileInfo)
 	
@@ -59,13 +60,13 @@ func (m *MemoryStatusMemory) NeedsProcessing(ctx context.Context, entries <-chan
 		for {
 			select {
 			case <-ctx.Done():
-				m.logger.Debug("NeedsProcessing cancelled by context", 
+				m.logger.Debug(l10n.T("NeedsProcessing cancelled by context"), 
 					"processed", processedCount, 
 					"needs_processing", needsProcessingCount)
 				return
 			case fileInfo, ok := <-entries:
 				if !ok {
-					m.logger.Info("NeedsProcessing completed", 
+					m.logger.Info(l10n.T("NeedsProcessing completed"), 
 						"total_processed", processedCount, 
 						"needs_processing", needsProcessingCount)
 					return
@@ -75,7 +76,7 @@ func (m *MemoryStatusMemory) NeedsProcessing(ctx context.Context, entries <-chan
 				
 				if m.needsProcessing(fileInfo) {
 					needsProcessingCount++
-					m.logger.Debug("File needs processing", 
+					m.logger.Debug(l10n.T("File needs processing"), 
 						"rel_path", fileInfo.RelPath, 
 						"size", fileInfo.Size, 
 						"mod_time", fileInfo.ModTime)
@@ -83,11 +84,11 @@ func (m *MemoryStatusMemory) NeedsProcessing(ctx context.Context, entries <-chan
 					select {
 					case resultCh <- fileInfo:
 					case <-ctx.Done():
-						m.logger.Debug("NeedsProcessing cancelled while sending result")
+						m.logger.Debug(l10n.T("NeedsProcessing cancelled while sending result"))
 						return
 					}
 				} else {
-					m.logger.Debug("File does not need processing", 
+					m.logger.Debug(l10n.T("File does not need processing"), 
 						"rel_path", fileInfo.RelPath)
 				}
 			}
@@ -122,7 +123,7 @@ func (m *MemoryStatusMemory) ReportDone(ctx context.Context, fileInfo uobf.FileI
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	
-	m.logger.Debug("Reporting file processing done", 
+	m.logger.Debug(l10n.T("Reporting file processing done"), 
 		"rel_path", fileInfo.RelPath, 
 		"size", fileInfo.Size)
 	
@@ -135,7 +136,7 @@ func (m *MemoryStatusMemory) ReportDone(ctx context.Context, fileInfo uobf.FileI
 		ProcessedAt: time.Now(),
 	}
 	
-	m.logger.Info("File processing completed successfully", 
+	m.logger.Info(l10n.T("File processing completed successfully"), 
 		"rel_path", fileInfo.RelPath)
 	
 	return nil
@@ -146,7 +147,7 @@ func (m *MemoryStatusMemory) ReportError(ctx context.Context, fileInfo uobf.File
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	
-	m.logger.Debug("Reporting file processing error", 
+	m.logger.Debug(l10n.T("Reporting file processing error"), 
 		"rel_path", fileInfo.RelPath, 
 		"error", err.Error())
 	
@@ -159,7 +160,7 @@ func (m *MemoryStatusMemory) ReportError(ctx context.Context, fileInfo uobf.File
 		ProcessedAt: time.Now(),
 	}
 	
-	m.logger.Error("File processing failed", 
+	m.logger.Error(l10n.T("File processing failed"), 
 		"rel_path", fileInfo.RelPath, 
 		"error", err.Error())
 	
@@ -201,7 +202,7 @@ func (m *MemoryStatusMemory) Clear() {
 	defer m.mu.Unlock()
 	
 	m.status = make(map[string]*FileStatus)
-	m.logger.Debug("All status information cleared")
+	m.logger.Debug(l10n.T("All status information cleared"))
 }
 
 // Count returns the number of files tracked in status memory
@@ -210,4 +211,21 @@ func (m *MemoryStatusMemory) Count() int {
 	defer m.mu.RUnlock()
 	
 	return len(m.status)
+}
+
+// init registers Japanese translations for memory status messages
+func init() {
+	l10n.Register("ja", l10n.LexiconMap{
+		"Starting needs processing evaluation":            "処理要否の評価を開始します",
+		"NeedsProcessing cancelled by context":           "コンテキストによりNeedsProcessingがキャンセルされました",
+		"NeedsProcessing completed":                       "NeedsProcessing完了",
+		"File needs processing":                           "ファイルの処理が必要です",
+		"File does not need processing":                  "ファイルの処理は不要です",
+		"NeedsProcessing cancelled while sending result": "結果送信中にNeedsProcessingがキャンセルされました",
+		"Reporting file processing done":                  "ファイル処理完了を報告します",
+		"File processing completed successfully":          "ファイル処理が正常に完了しました",
+		"Reporting file processing error":                 "ファイル処理エラーを報告します",
+		"File processing failed":                          "ファイル処理に失敗しました",
+		"All status information cleared":                  "全ステータス情報をクリアしました",
+	})
 }
