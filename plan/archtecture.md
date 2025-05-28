@@ -21,9 +21,9 @@ UnifiedOverwriteBatchFlow (UOBF) は、様々なファイルシステム（ロ�
 │   FileSystem      │ │  StatusMemory   │ │ BacklogManager  │
 │   Interface       │ │  Interface      │ │  Interface      │
 ├───────────────────┤ ├─────────────────┤ ├─────────────────┤
-│ • Walk            │ │ • NeedsProcess  │ │ • WriteBacklog  │
-│ • Download        │ │ • ReportDone    │ │ • ReadBacklog   │
-│ • Upload          │ │ • ReportError   │ │ • CountBacklog  │
+│ • Walk            │ │ • NeedsProcess  │ │ • StartWriting  │
+│ • Download        │ │ • ReportDone    │ │ • StartReading  │
+│ • Upload          │ │ • ReportError   │ │ • CountRelPaths │
 └───────┬───────────┘ └─────────────────┘ └─────────────────┘
         │
 ┌───────▼───────────────────────────────────────────────────────┐
@@ -150,30 +150,32 @@ Value: {
 
 ### 4. BacklogManager Interface (処理待ちファイル管理)
 
-**役割**: 処理対象ファイルリストの圧縮保存・読込
+**役割**: 処理対象ファイルの相対パスリストの圧縮保存・読込
 
 ```go
 type BacklogManager interface {
-    StartWriting(ctx context.Context, entries <-chan FileInfo) error
-    StartReading(ctx context.Context) (<-chan FileInfo, error)
-    CountEntries(ctx context.Context) (int64, error)
+    StartWriting(ctx context.Context, relPaths <-chan string) error
+    StartReading(ctx context.Context) (<-chan string, error)
+    CountRelPaths(ctx context.Context) (int64, error)
     SetLogger(logger Logger)
 }
 ```
 
 **責任範囲**:
 
-- **大容量対応**: 数万〜数十万件のファイルリスト管理
+- **大容量対応**: 数万〜数十万件のファイルパスリスト管理
 - **圧縮効率**: gzip圧縮によるディスク使用量削減
 - **ストリーミング**: メモリ効率的な逐次読み書き
 - **進捗算出**: 事前カウントによる正確な進捗表示
+- **シンプル形式**: 相対パスのみの軽量テキスト形式
 
 **ファイル形式**:
 
-```json
-// /tmp/backlog.json.gz (gzip圧縮)
-{"name":"file1.txt","size":1024,"path":"/data/file1.txt",...}
-{"name":"file2.txt","size":2048,"path":"/data/file2.txt",...}
+```
+# /tmp/backlog.txt.gz (gzip圧縮テキスト)
+file1.txt
+dir/file2.txt
+subdir/file3.txt
 ```
 
 ### 5. l10n Package (国際化・多言語対応)
@@ -232,10 +234,10 @@ l10n.Register("ja", l10n.LexiconMap{
 FileSystem.Walk() 
     ↓ (FileInfo channel)
 StatusMemory.NeedsProcessing()
-    ↓ (Filtered FileInfo channel)  
+    ↓ (Filtered FileInfo channel → RelPath extraction)  
 BacklogManager.StartWriting()
     ↓
-Compressed backlog file
+Compressed text backlog file (relative paths only)
 ```
 
 **詳細フロー**:
@@ -243,13 +245,13 @@ Compressed backlog file
 1. **FileSystem.Walk()**: open-match.dev/open-matchパターンでファイルをフィルタリング
 2. **Channel Pipeline**: バッチサイズでFileInfoをチャネル送信
 3. **StatusMemory**: KVSと照合して処理要否を判定
-4. **BacklogManager**: 処理が必要なファイルをgzip圧縮で保存
+4. **BacklogManager**: 処理が必要なファイルの相対パスのみをgzip圧縮テキスト形式で保存
 
 ### Phase 2: Process Files
 
 ```
 BacklogManager.StartReading()
-    ↓ (FileInfo channel)
+    ↓ (RelPath channel → FileInfo reconstruction via filesystem.Stat)
 Worker Pool (Concurrent Processing)
     ├─ FileSystem.Download()
     ├─ ProcessFunc() (User Logic)
@@ -261,10 +263,11 @@ Worker Pool (Concurrent Processing)
 **並列処理詳細**:
 
 1. **Worker Pool**: 指定同時実行数でワーカー起動
-2. **Download**: 一時ディレクトリにファイルダウンロード
-3. **Process**: ユーザー定義のProcessFuncでファイル加工
-4. **Upload**: 加工済みファイルを元の場所に上書きアップロード
-5. **Status Update**: 成功・失敗をStatusMemoryに記録
+2. **FileInfo Reconstruction**: 相対パスからfilesystem.Statを使用してFileInfo再構築
+3. **Download**: 一時ディレクトリにファイルダウンロード
+4. **Process**: ユーザー定義のProcessFuncでファイル加工
+5. **Upload**: 加工済みファイルを元の場所に上書きアップロード
+6. **Status Update**: 成功・失敗をStatusMemoryに記録
 
 ## エラーハンドリング戦略
 

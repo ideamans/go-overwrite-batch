@@ -28,9 +28,7 @@ unified-overwrite-batch-flow/
 │   └── leveldb.go             # LevelDB実装
 │
 ├── backlog/                    # バックログ管理実装  
-│   ├── backlog.go             # BacklogManagerインターフェース基底実装
-│   ├── compressed.go          # gzip圧縮ファイル実装
-│   └── json.go                # JSON形式のヘルパー
+│   └── gzip.go                # gzip圧縮テキスト形式のBacklogManager実装
 │
 ├── config/                     # 設定管理
 │   ├── config.go              # 設定構造体
@@ -92,7 +90,7 @@ unified-overwrite-batch-flow/
 - **uobf.go**: 全体のインターフェース定義（公開API）
 - **filesystem/**: 各種ファイルシステム実装
 - **status/**: ステータス管理の各種実装
-- **backlog/**: バックログファイル管理
+- **backlog/**: バックログファイル管理（相対パス形式のテキストファイル）
 
 ### 🔒 **internal/パッケージ**
 

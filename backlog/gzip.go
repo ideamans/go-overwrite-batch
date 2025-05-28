@@ -12,6 +12,32 @@ import (
 	"github.com/ideamans/go-unified-overwright-batch-flow/l10n"
 )
 
+func init() {
+	// Register Japanese translations for backlog operations
+	l10n.Register("ja", l10n.LexiconMap{
+		"Starting to write backlog file":              "バックログファイルの書き込みを開始します",
+		"Failed to create backlog directory":          "バックログディレクトリの作成に失敗しました", 
+		"Failed to create backlog file":               "バックログファイルの作成に失敗しました",
+		"Backlog writing cancelled":                   "バックログの書き込みがキャンセルされました",
+		"Backlog writing completed":                   "バックログの書き込みが完了しました",
+		"Failed to write backlog entry":               "バックログエントリの書き込みに失敗しました",
+		"Backlog writing progress":                    "バックログ書き込み進行状況",
+		"Starting to read backlog file":               "バックログファイルの読み取りを開始します",
+		"Backlog file does not exist":                 "バックログファイルが存在しません",
+		"Failed to open backlog file":                 "バックログファイルのオープンに失敗しました",
+		"Failed to create gzip reader":                "Gzipリーダーの作成に失敗しました",
+		"Backlog reading cancelled":                   "バックログの読み取りがキャンセルされました",
+		"Backlog reading completed":                   "バックログの読み取りが完了しました",
+		"Failed to read backlog file":                 "バックログファイルの読み取りに失敗しました",
+		"Backlog reading progress":                    "バックログ読み取り進行状況",
+		"Starting to count backlog entries":           "バックログエントリの集計を開始します",
+		"Backlog counting cancelled":                  "バックログの集計がキャンセルされました",
+		"Failed to scan backlog file during counting": "集計中のバックログファイルスキャンに失敗しました",
+		"Backlog counting completed":                  "バックログの集計が完了しました",
+		"Backlog counting progress":                   "バックログ集計進行状況",
+	})
+}
+
 // Logger interface for structured logging
 type Logger interface {
 	Info(msg string, fields ...interface{})
