@@ -82,7 +82,8 @@ The main interface definitions are in `uobf.go:1-379`. Key interfaces:
 
 - `FileSystem` interface: `uobf.go:68-83` - Unified filesystem operations
 - `StatusMemory` interface: `uobf.go:90-103` - Processing state management  
-- `BacklogManager` interface: `uobf.go:110-122` - Compressed backlog file handling
+- `BacklogManager` interface: `uobf.go:110-124` - Compressed backlog file handling with gzip compression
+- `GzipBacklogManager` implementation: `backlog/gzip.go` - Concrete implementation using gzip compression
 - `ProcessingWorkflow` struct: `uobf.go:222-227` - Main workflow orchestrator
 
 The project uses a plugin architecture where different implementations of core interfaces can be swapped (filesystem types, status storage backends, etc.).
@@ -93,7 +94,7 @@ See `plan/filemap.md` for the planned directory structure. Implementation follow
 
 - `filesystem/` - Storage protocol implementations
 - `status/` - State management backends 
-- `backlog/` - Backlog file formats
+- `backlog/` - Backlog file formats (gzip-compressed JSON implementation)
 - `l10n/` - Localization infrastructure for multi-language support
 - `internal/` - Private utilities (worker pools, retry logic, progress tracking)
 
@@ -216,6 +217,52 @@ func TestNormalOperation(t *testing.T) {
 ```
 
 This localization infrastructure ensures UOBF can be effectively used by international teams and in diverse deployment environments while maintaining test reliability.
+
+# BacklogManager Implementation
+
+The BacklogManager handles compressed storage of file lists for batch processing. The current implementation uses gzip compression for space efficiency.
+
+## GzipBacklogManager
+
+Located in `backlog/gzip.go`, provides:
+
+- **Gzip Compression**: Reduces backlog file size significantly for large file lists
+- **JSON Serialization**: Uses JSON for structured data storage within compressed files
+- **Stream Processing**: Handles large backlogs without loading entire content into memory
+- **Progress Tracking**: Provides periodic progress updates during long operations
+- **Context Cancellation**: Supports graceful cancellation of read/write operations
+- **Buffered I/O**: Uses buffered readers/writers for improved performance
+
+### Usage Example
+```go
+backlogPath := "/tmp/processing.backlog.gz"
+manager := backlog.NewGzipBacklogManager(backlogPath)
+manager.SetLogger(logger)
+
+// Writing entries
+entriesChan := make(chan backlog.FileInfo, 100)
+go func() {
+    defer close(entriesChan)
+    // Add file entries...
+}()
+err := manager.StartWriting(ctx, entriesChan)
+
+// Reading entries
+readChan, err := manager.StartReading(ctx)
+for entry := range readChan {
+    // Process entry...
+}
+
+// Count entries for progress tracking
+count, err := manager.CountEntries(ctx)
+```
+
+### File Format
+Backlog files use gzip-compressed JSON with one file entry per line:
+```json
+{"rel_path":"file1.txt","abs_path":"/root/file1.txt","size":1024,"mod_time":1640995200}
+{"rel_path":"dir/file2.txt","abs_path":"/root/dir/file2.txt","size":2048,"mod_time":1640995300}
+```
 
 # Graceful Shutdown
 

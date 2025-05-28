@@ -154,9 +154,9 @@ Value: {
 
 ```go
 type BacklogManager interface {
-    WriteBacklogFile(ctx context.Context, filePath string, entries <-chan FileInfo) error
-    ReadBacklogFile(ctx context.Context, filePath string) (<-chan FileInfo, error)
-    CountBacklogFile(ctx context.Context, filePath string) (int64, error)
+    StartWriting(ctx context.Context, entries <-chan FileInfo) error
+    StartReading(ctx context.Context) (<-chan FileInfo, error)
+    CountEntries(ctx context.Context) (int64, error)
     SetLogger(logger Logger)
 }
 ```
@@ -233,7 +233,7 @@ FileSystem.Walk()
     ↓ (FileInfo channel)
 StatusMemory.NeedsProcessing()
     ↓ (Filtered FileInfo channel)  
-BacklogManager.WriteBacklogFile()
+BacklogManager.StartWriting()
     ↓
 Compressed backlog file
 ```
@@ -248,7 +248,7 @@ Compressed backlog file
 ### Phase 2: Process Files
 
 ```
-BacklogManager.ReadBacklogFile()
+BacklogManager.StartReading()
     ↓ (FileInfo channel)
 Worker Pool (Concurrent Processing)
     ├─ FileSystem.Download()

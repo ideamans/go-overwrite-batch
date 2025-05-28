@@ -108,15 +108,16 @@ type StatusMemory interface {
 // =============================================================================
 
 // BacklogManager handles backlog file operations with compression
+// The backlog file path is set during creation and used for all operations
 type BacklogManager interface {
-	// WriteBacklogFile writes file entries to a compressed backlog file
-	WriteBacklogFile(ctx context.Context, filePath string, entries <-chan FileInfo) error
+	// StartWriting writes file entries to the configured backlog file
+	StartWriting(ctx context.Context, entries <-chan FileInfo) error
 
-	// ReadBacklogFile reads file entries from a compressed backlog file
-	ReadBacklogFile(ctx context.Context, filePath string) (<-chan FileInfo, error)
+	// StartReading reads file entries from the configured backlog file
+	StartReading(ctx context.Context) (<-chan FileInfo, error)
 
-	// CountBacklogFile counts total entries in a backlog file (for progress tracking)
-	CountBacklogFile(ctx context.Context, filePath string) (int64, error)
+	// CountEntries counts total entries in the configured backlog file (for progress tracking)
+	CountEntries(ctx context.Context) (int64, error)
 
 	// SetLogger sets the logger for the backlog manager
 	SetLogger(logger Logger)
@@ -142,14 +143,8 @@ const (
 
 // ScanAndFilterOptions provides options for the scanning and filtering phase
 type ScanAndFilterOptions struct {
-	// RootPath for scanning
-	RootPath string
-
 	// WalkOptions for filesystem traversal
 	WalkOptions WalkOptions
-
-	// BacklogFilePath for the compressed backlog file
-	BacklogFilePath string
 
 	// BatchSize for batching file entries sent to status memory
 	BatchSize int
@@ -166,9 +161,6 @@ type ScanAndFilterOptions struct {
 
 // ProcessingOptions provides options for the processing phase
 type ProcessingOptions struct {
-	// BacklogFilePath - path to the compressed backlog file
-	BacklogFilePath string
-
 	// TempDir for temporary file storage
 	TempDir string
 
@@ -249,8 +241,6 @@ func (w *ProcessingWorkflow) SetLogger(logger Logger) {
 // ScanAndFilter performs the scanning and filtering phase
 func (w *ProcessingWorkflow) ScanAndFilter(ctx context.Context, options ScanAndFilterOptions) error {
 	w.logger.Info("Starting scan and filter phase",
-		"root_path", options.RootPath,
-		"backlog_file", options.BacklogFilePath,
 		"estimated_total", options.EstimatedTotal)
 
 	// Create pipeline: Walk -> Batch -> Status Memory Check -> Backlog Writer
@@ -259,7 +249,7 @@ func (w *ProcessingWorkflow) ScanAndFilter(ctx context.Context, options ScanAndF
 	walkCh := make(chan FileInfo, options.BatchSize*2)
 	go func() {
 		defer close(walkCh)
-		w.logger.Debug("Starting filesystem walk", "root_path", options.RootPath)
+		w.logger.Debug("Starting filesystem walk")
 		if err := w.fs.Walk(ctx, options.WalkOptions, walkCh); err != nil {
 			w.logger.Error("Error during filesystem walk", "error", err)
 		}
@@ -274,36 +264,35 @@ func (w *ProcessingWorkflow) ScanAndFilter(ctx context.Context, options ScanAndF
 	}
 
 	// Step 3: Write filtered entries to compressed backlog file
-	w.logger.Debug("Writing backlog file", "path", options.BacklogFilePath)
-	if err := w.backlogManager.WriteBacklogFile(ctx, options.BacklogFilePath, filteredCh); err != nil {
-		w.logger.Error("Error writing backlog file", "error", err, "path", options.BacklogFilePath)
+	w.logger.Debug("Writing backlog file")
+	if err := w.backlogManager.StartWriting(ctx, filteredCh); err != nil {
+		w.logger.Error("Error writing backlog file", "error", err)
 		return err
 	}
 
-	w.logger.Info("Scan and filter phase completed", "backlog_file", options.BacklogFilePath)
+	w.logger.Info("Scan and filter phase completed")
 	return nil
 }
 
 // ProcessFiles performs the processing phase
 func (w *ProcessingWorkflow) ProcessFiles(ctx context.Context, options ProcessingOptions) error {
 	w.logger.Info("Starting file processing phase",
-		"backlog_file", options.BacklogFilePath,
 		"concurrency", options.Concurrency,
 		"retry_count", options.RetryCount)
 
 	// Step 1: Get total count for progress tracking
-	total, err := w.backlogManager.CountBacklogFile(ctx, options.BacklogFilePath)
+	total, err := w.backlogManager.CountEntries(ctx)
 	if err != nil {
-		w.logger.Error("Error counting backlog file", "error", err, "path", options.BacklogFilePath)
+		w.logger.Error("Error counting backlog entries", "error", err)
 		return err
 	}
 
-	w.logger.Info("Backlog file loaded", "total_files", total, "path", options.BacklogFilePath)
+	w.logger.Info("Backlog file loaded", "total_files", total)
 
 	// Step 2: Read backlog file
-	entriesCh, err := w.backlogManager.ReadBacklogFile(ctx, options.BacklogFilePath)
+	entriesCh, err := w.backlogManager.StartReading(ctx)
 	if err != nil {
-		w.logger.Error("Error reading backlog file", "error", err, "path", options.BacklogFilePath)
+		w.logger.Error("Error reading backlog file", "error", err)
 		return err
 	}
 
