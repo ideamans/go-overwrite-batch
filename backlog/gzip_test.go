@@ -11,30 +11,6 @@ import (
 	"github.com/ideamans/go-unified-overwright-batch-flow/l10n"
 )
 
-// testFileInfo implements FileInfo interface for testing
-type testFileInfo struct {
-	relPath string
-	absPath string
-	size    int64
-	modTime int64
-}
-
-func (t *testFileInfo) GetRelPath() string {
-	return t.relPath
-}
-
-func (t *testFileInfo) GetAbsPath() string {
-	return t.absPath
-}
-
-func (t *testFileInfo) GetSize() int64 {
-	return t.size
-}
-
-func (t *testFileInfo) GetModTime() int64 {
-	return t.modTime
-}
-
 // testLogger implements Logger interface for testing
 type testLogger struct {
 	messages []string
@@ -76,37 +52,22 @@ func TestGzipBacklogManager_WriteAndRead(t *testing.T) {
 	manager.SetLogger(logger)
 
 	// Create test data
-	testFiles := []FileInfo{
-		&testFileInfo{
-			relPath: "file1.txt",
-			absPath: "/root/file1.txt",
-			size:    1024,
-			modTime: time.Now().Unix(),
-		},
-		&testFileInfo{
-			relPath: "dir/file2.txt",
-			absPath: "/root/dir/file2.txt",
-			size:    2048,
-			modTime: time.Now().Unix(),
-		},
-		&testFileInfo{
-			relPath: "file3.txt",
-			absPath: "/root/file3.txt",
-			size:    512,
-			modTime: time.Now().Unix(),
-		},
+	testRelPaths := []string{
+		"file1.txt",
+		"dir/file2.txt",
+		"file3.txt",
 	}
 
 	// Test writing
 	ctx := context.Background()
-	entryChan := make(chan FileInfo, len(testFiles))
+	relPathChan := make(chan string, len(testRelPaths))
 	
-	for _, file := range testFiles {
-		entryChan <- file
+	for _, relPath := range testRelPaths {
+		relPathChan <- relPath
 	}
-	close(entryChan)
+	close(relPathChan)
 
-	err = manager.StartWriting(ctx, entryChan)
+	err = manager.StartWriting(ctx, relPathChan)
 	if err != nil {
 		t.Fatalf("Failed to write backlog: %v", err)
 	}
@@ -117,12 +78,12 @@ func TestGzipBacklogManager_WriteAndRead(t *testing.T) {
 	}
 
 	// Test counting
-	count, err := manager.CountEntries(ctx)
+	count, err := manager.CountRelPaths(ctx)
 	if err != nil {
 		t.Fatalf("Failed to count entries: %v", err)
 	}
-	if count != int64(len(testFiles)) {
-		t.Errorf("Expected %d entries, got %d", len(testFiles), count)
+	if count != int64(len(testRelPaths)) {
+		t.Errorf("Expected %d entries, got %d", len(testRelPaths), count)
 	}
 
 	// Test reading
@@ -131,40 +92,25 @@ func TestGzipBacklogManager_WriteAndRead(t *testing.T) {
 		t.Fatalf("Failed to start reading: %v", err)
 	}
 
-	var readFiles []FileInfo
-	for entry := range readChan {
-		readFiles = append(readFiles, entry)
+	var readRelPaths []string
+	for relPath := range readChan {
+		readRelPaths = append(readRelPaths, relPath)
 	}
 
-	if len(readFiles) != len(testFiles) {
-		t.Errorf("Expected %d files, got %d", len(testFiles), len(readFiles))
+	if len(readRelPaths) != len(testRelPaths) {
+		t.Errorf("Expected %d relative paths, got %d", len(testRelPaths), len(readRelPaths))
 	}
 
 	// Verify data integrity
-	for i, original := range testFiles {
-		if i >= len(readFiles) {
+	for i, original := range testRelPaths {
+		if i >= len(readRelPaths) {
 			break
 		}
-		read := readFiles[i]
+		read := readRelPaths[i]
 		
-		if read.GetRelPath() != original.GetRelPath() {
+		if read != original {
 			t.Errorf("RelPath mismatch at index %d: expected %s, got %s", 
-				i, original.GetRelPath(), read.GetRelPath())
-		}
-		
-		if read.GetAbsPath() != original.GetAbsPath() {
-			t.Errorf("AbsPath mismatch at index %d: expected %s, got %s", 
-				i, original.GetAbsPath(), read.GetAbsPath())
-		}
-		
-		if read.GetSize() != original.GetSize() {
-			t.Errorf("Size mismatch at index %d: expected %d, got %d", 
-				i, original.GetSize(), read.GetSize())
-		}
-		
-		if read.GetModTime() != original.GetModTime() {
-			t.Errorf("ModTime mismatch at index %d: expected %d, got %d", 
-				i, original.GetModTime(), read.GetModTime())
+				i, original, read)
 		}
 	}
 }
@@ -182,16 +128,16 @@ func TestGzipBacklogManager_EmptyBacklog(t *testing.T) {
 
 	// Test writing empty backlog
 	ctx := context.Background()
-	entryChan := make(chan FileInfo)
-	close(entryChan) // Immediately close to simulate empty input
+	relPathChan := make(chan string)
+	close(relPathChan) // Immediately close to simulate empty input
 
-	err = manager.StartWriting(ctx, entryChan)
+	err = manager.StartWriting(ctx, relPathChan)
 	if err != nil {
 		t.Fatalf("Failed to write empty backlog: %v", err)
 	}
 
 	// Test counting empty backlog
-	count, err := manager.CountEntries(ctx)
+	count, err := manager.CountRelPaths(ctx)
 	if err != nil {
 		t.Fatalf("Failed to count empty backlog: %v", err)
 	}
@@ -205,13 +151,13 @@ func TestGzipBacklogManager_EmptyBacklog(t *testing.T) {
 		t.Fatalf("Failed to read empty backlog: %v", err)
 	}
 
-	var readFiles []FileInfo
-	for entry := range readChan {
-		readFiles = append(readFiles, entry)
+	var readRelPaths []string
+	for relPath := range readChan {
+		readRelPaths = append(readRelPaths, relPath)
 	}
 
-	if len(readFiles) != 0 {
-		t.Errorf("Expected 0 files from empty backlog, got %d", len(readFiles))
+	if len(readRelPaths) != 0 {
+		t.Errorf("Expected 0 relative paths from empty backlog, got %d", len(readRelPaths))
 	}
 }
 
@@ -226,7 +172,7 @@ func TestGzipBacklogManager_NonExistentFile(t *testing.T) {
 	}
 
 	// Test counting non-existent file
-	_, err = manager.CountEntries(ctx)
+	_, err = manager.CountRelPaths(ctx)
 	if err == nil {
 		t.Error("Expected error when counting non-existent file")
 	}
@@ -247,19 +193,14 @@ func TestGzipBacklogManager_CancellationDuringWrite(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	
 	// Create channel with some data
-	entryChan := make(chan FileInfo, 1)
-	entryChan <- &testFileInfo{
-		relPath: "file1.txt",
-		absPath: "/root/file1.txt",
-		size:    1024,
-		modTime: time.Now().Unix(),
-	}
+	relPathChan := make(chan string, 1)
+	relPathChan <- "file1.txt"
 	
 	// Cancel context immediately
 	cancel()
 	
 	// Writing should return context cancellation error
-	err = manager.StartWriting(ctx, entryChan)
+	err = manager.StartWriting(ctx, relPathChan)
 	if err != context.Canceled {
 		t.Errorf("Expected context.Canceled error, got: %v", err)
 	}
@@ -278,12 +219,12 @@ func TestGzipBacklogManager_CancellationDuringRead(t *testing.T) {
 
 	// First write some data
 	ctx := context.Background()
-	entryChan := make(chan FileInfo, 2)
-	entryChan <- &testFileInfo{relPath: "file1.txt", absPath: "/root/file1.txt", size: 1024, modTime: time.Now().Unix()}
-	entryChan <- &testFileInfo{relPath: "file2.txt", absPath: "/root/file2.txt", size: 2048, modTime: time.Now().Unix()}
-	close(entryChan)
+	relPathChan := make(chan string, 2)
+	relPathChan <- "file1.txt"
+	relPathChan <- "file2.txt"
+	close(relPathChan)
 
-	err = manager.StartWriting(ctx, entryChan)
+	err = manager.StartWriting(ctx, relPathChan)
 	if err != nil {
 		t.Fatalf("Failed to write test data: %v", err)
 	}
@@ -331,30 +272,26 @@ func TestGzipBacklogManager_LargeBacklog(t *testing.T) {
 
 	// Create a large number of entries
 	const numEntries = 50000
-	entryChan := make(chan FileInfo, 1000) // Buffer for performance
+	relPathChan := make(chan string, 1000) // Buffer for performance
 
 	ctx := context.Background()
 
 	// Start writing in a goroutine
 	go func() {
-		defer close(entryChan)
+		defer close(relPathChan)
 		for i := 0; i < numEntries; i++ {
-			entryChan <- &testFileInfo{
-				relPath: filepath.Join("dir", "file"+string(rune(i%26+'a')), "test.txt"),
-				absPath: filepath.Join("/root", "dir", "file"+string(rune(i%26+'a')), "test.txt"),
-				size:    int64(i * 100),
-				modTime: time.Now().Unix() + int64(i),
-			}
+			relPath := filepath.Join("dir", "file"+string(rune(i%26+'a')), "test.txt")
+			relPathChan <- relPath
 		}
 	}()
 
-	err = manager.StartWriting(ctx, entryChan)
+	err = manager.StartWriting(ctx, relPathChan)
 	if err != nil {
 		t.Fatalf("Failed to write large backlog: %v", err)
 	}
 
 	// Test counting
-	count, err := manager.CountEntries(ctx)
+	count, err := manager.CountRelPaths(ctx)
 	if err != nil {
 		t.Fatalf("Failed to count large backlog: %v", err)
 	}

@@ -110,14 +110,14 @@ type StatusMemory interface {
 // BacklogManager handles backlog file operations with compression
 // The backlog file path is set during creation and used for all operations
 type BacklogManager interface {
-	// StartWriting writes file entries to the configured backlog file
-	StartWriting(ctx context.Context, entries <-chan FileInfo) error
+	// StartWriting writes relative file paths to the configured backlog file
+	StartWriting(ctx context.Context, relPaths <-chan string) error
 
-	// StartReading reads file entries from the configured backlog file
-	StartReading(ctx context.Context) (<-chan FileInfo, error)
+	// StartReading reads relative file paths from the configured backlog file
+	StartReading(ctx context.Context) (<-chan string, error)
 
-	// CountEntries counts total entries in the configured backlog file (for progress tracking)
-	CountEntries(ctx context.Context) (int64, error)
+	// CountRelPaths counts total relative paths in the configured backlog file (for progress tracking)
+	CountRelPaths(ctx context.Context) (int64, error)
 
 	// SetLogger sets the logger for the backlog manager
 	SetLogger(logger Logger)
@@ -263,9 +263,23 @@ func (w *ProcessingWorkflow) ScanAndFilter(ctx context.Context, options ScanAndF
 		return err
 	}
 
-	// Step 3: Write filtered entries to compressed backlog file
+	// Step 3: Extract relative paths and write to compressed backlog file
 	w.logger.Debug("Writing backlog file")
-	if err := w.backlogManager.StartWriting(ctx, filteredCh); err != nil {
+	relPathCh := make(chan string, 100)
+	
+	// Start goroutine to convert FileInfo to relative paths
+	go func() {
+		defer close(relPathCh)
+		for fileInfo := range filteredCh {
+			select {
+			case <-ctx.Done():
+				return
+			case relPathCh <- fileInfo.RelPath:
+			}
+		}
+	}()
+	
+	if err := w.backlogManager.StartWriting(ctx, relPathCh); err != nil {
 		w.logger.Error("Error writing backlog file", "error", err)
 		return err
 	}
@@ -281,7 +295,7 @@ func (w *ProcessingWorkflow) ProcessFiles(ctx context.Context, options Processin
 		"retry_count", options.RetryCount)
 
 	// Step 1: Get total count for progress tracking
-	total, err := w.backlogManager.CountEntries(ctx)
+	total, err := w.backlogManager.CountRelPaths(ctx)
 	if err != nil {
 		w.logger.Error("Error counting backlog entries", "error", err)
 		return err
@@ -289,21 +303,22 @@ func (w *ProcessingWorkflow) ProcessFiles(ctx context.Context, options Processin
 
 	w.logger.Info("Backlog file loaded", "total_files", total)
 
-	// Step 2: Read backlog file
-	entriesCh, err := w.backlogManager.StartReading(ctx)
+	// Step 2: Read backlog file (relative paths)
+	relPathsCh, err := w.backlogManager.StartReading(ctx)
 	if err != nil {
 		w.logger.Error("Error reading backlog file", "error", err)
 		return err
 	}
 
-	// Step 3: Process files with controlled concurrency
+	// Step 3: Convert relative paths back to FileInfo and process files
 	w.logger.Info("Starting concurrent file processing", "workers", options.Concurrency)
-	return w.processWithConcurrency(ctx, entriesCh, total, options)
+	return w.processWithConcurrency(ctx, relPathsCh, total, options)
 }
 
 // processWithConcurrency handles concurrent processing of files
-func (w *ProcessingWorkflow) processWithConcurrency(ctx context.Context, entries <-chan FileInfo, total int64, options ProcessingOptions) error {
+func (w *ProcessingWorkflow) processWithConcurrency(ctx context.Context, relPaths <-chan string, total int64, options ProcessingOptions) error {
 	// Implementation details for concurrent processing with:
+	// - Convert relative paths back to FileInfo using filesystem.Stat
 	// - Download with retry logic
 	// - Processing with cancellation (except during upload)
 	// - Upload with retry logic and status reporting

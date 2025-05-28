@@ -4,22 +4,13 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ideamans/go-unified-overwright-batch-flow/l10n"
 )
-
-// FileInfo represents information about a file for backlog operations
-type FileInfo interface {
-	GetRelPath() string
-	GetAbsPath() string
-	GetSize() int64
-	GetModTime() int64
-}
 
 // Logger interface for structured logging
 type Logger interface {
@@ -65,8 +56,8 @@ func (g *GzipBacklogManager) log(level string, msg string, fields ...interface{}
 	}
 }
 
-// StartWriting writes file entries to the configured backlog file with gzip compression
-func (g *GzipBacklogManager) StartWriting(ctx context.Context, entries <-chan FileInfo) error {
+// StartWriting writes relative file paths to the configured backlog file with gzip compression
+func (g *GzipBacklogManager) StartWriting(ctx context.Context, relPaths <-chan string) error {
 	g.log("info", l10n.T("Starting to write backlog file"), "file_path", g.filePath)
 	
 	// Ensure directory exists
@@ -92,7 +83,6 @@ func (g *GzipBacklogManager) StartWriting(ctx context.Context, entries <-chan Fi
 	bufWriter := bufio.NewWriter(gzipWriter)
 	defer bufWriter.Flush()
 	
-	encoder := json.NewEncoder(bufWriter)
 	entryCount := int64(0)
 	
 	for {
@@ -100,29 +90,17 @@ func (g *GzipBacklogManager) StartWriting(ctx context.Context, entries <-chan Fi
 		case <-ctx.Done():
 			g.log("warn", l10n.T("Backlog writing cancelled"), "entries_written", entryCount)
 			return ctx.Err()
-		case entry, ok := <-entries:
+		case relPath, ok := <-relPaths:
 			if !ok {
 				// Channel closed, we're done
 				g.log("info", l10n.T("Backlog writing completed"), "entries_written", entryCount, "file_path", g.filePath)
 				return nil
 			}
 			
-			// Convert to serializable struct
-			backlogEntry := struct {
-				RelPath string `json:"rel_path"`
-				AbsPath string `json:"abs_path"`
-				Size    int64  `json:"size"`
-				ModTime int64  `json:"mod_time"`
-			}{
-				RelPath: entry.GetRelPath(),
-				AbsPath: entry.GetAbsPath(),
-				Size:    entry.GetSize(),
-				ModTime: entry.GetModTime(),
-			}
-			
-			if err := encoder.Encode(backlogEntry); err != nil {
-				g.log("error", l10n.T("Failed to encode backlog entry"), "rel_path", entry.GetRelPath(), "error", err)
-				return fmt.Errorf("failed to encode backlog entry %s: %w", entry.GetRelPath(), err)
+			// Write relative path as simple text line
+			if _, err := bufWriter.WriteString(relPath + "\n"); err != nil {
+				g.log("error", l10n.T("Failed to write backlog entry"), "rel_path", relPath, "error", err)
+				return fmt.Errorf("failed to write backlog entry %s: %w", relPath, err)
 			}
 			
 			entryCount++
@@ -134,8 +112,8 @@ func (g *GzipBacklogManager) StartWriting(ctx context.Context, entries <-chan Fi
 	}
 }
 
-// StartReading reads file entries from the configured backlog file with gzip decompression
-func (g *GzipBacklogManager) StartReading(ctx context.Context) (<-chan FileInfo, error) {
+// StartReading reads relative file paths from the configured backlog file with gzip decompression
+func (g *GzipBacklogManager) StartReading(ctx context.Context) (<-chan string, error) {
 	g.log("info", l10n.T("Starting to read backlog file"), "file_path", g.filePath)
 	
 	// Check if file exists
@@ -161,55 +139,35 @@ func (g *GzipBacklogManager) StartReading(ctx context.Context) (<-chan FileInfo,
 	
 	// Create buffered reader for better performance
 	bufReader := bufio.NewReader(gzipReader)
-	decoder := json.NewDecoder(bufReader)
+	scanner := bufio.NewScanner(bufReader)
 	
-	// Create channel for file entries
-	entryChan := make(chan FileInfo, 100)
+	// Create channel for relative paths
+	relPathChan := make(chan string, 100)
 	
 	// Start goroutine to read entries
 	go func() {
-		defer close(entryChan)
+		defer close(relPathChan)
 		defer gzipReader.Close()
 		defer file.Close()
 		
 		entryCount := int64(0)
 		
-		for {
+		for scanner.Scan() {
 			select {
 			case <-ctx.Done():
 				g.log("warn", l10n.T("Backlog reading cancelled"), "entries_read", entryCount)
 				return
 			default:
-				var backlogEntry struct {
-					RelPath string `json:"rel_path"`
-					AbsPath string `json:"abs_path"`
-					Size    int64  `json:"size"`
-					ModTime int64  `json:"mod_time"`
-				}
-				
-				if err := decoder.Decode(&backlogEntry); err != nil {
-					if err == io.EOF {
-						// End of file reached
-						g.log("info", l10n.T("Backlog reading completed"), "entries_read", entryCount, "file_path", g.filePath)
-						return
-					}
-					g.log("error", l10n.T("Failed to decode backlog entry"), "error", err, "entries_read", entryCount)
-					return
-				}
-				
-				// Convert to FileInfo implementation
-				fileInfo := &backlogFileInfo{
-					relPath: backlogEntry.RelPath,
-					absPath: backlogEntry.AbsPath,
-					size:    backlogEntry.Size,
-					modTime: backlogEntry.ModTime,
+				relPath := strings.TrimSpace(scanner.Text())
+				if relPath == "" {
+					continue // Skip empty lines
 				}
 				
 				select {
 				case <-ctx.Done():
 					g.log("warn", l10n.T("Backlog reading cancelled"), "entries_read", entryCount)
 					return
-				case entryChan <- fileInfo:
+				case relPathChan <- relPath:
 					entryCount++
 					
 					if entryCount%10000 == 0 {
@@ -218,13 +176,19 @@ func (g *GzipBacklogManager) StartReading(ctx context.Context) (<-chan FileInfo,
 				}
 			}
 		}
+		
+		if err := scanner.Err(); err != nil {
+			g.log("error", l10n.T("Failed to read backlog file"), "error", err, "entries_read", entryCount)
+		} else {
+			g.log("info", l10n.T("Backlog reading completed"), "entries_read", entryCount, "file_path", g.filePath)
+		}
 	}()
 	
-	return entryChan, nil
+	return relPathChan, nil
 }
 
-// CountEntries counts total entries in the configured backlog file
-func (g *GzipBacklogManager) CountEntries(ctx context.Context) (int64, error) {
+// CountRelPaths counts total relative paths in the configured backlog file
+func (g *GzipBacklogManager) CountRelPaths(ctx context.Context) (int64, error) {
 	g.log("info", l10n.T("Starting to count backlog entries"), "file_path", g.filePath)
 	
 	// Check if file exists
@@ -251,55 +215,33 @@ func (g *GzipBacklogManager) CountEntries(ctx context.Context) (int64, error) {
 	
 	// Create buffered reader for better performance
 	bufReader := bufio.NewReader(gzipReader)
-	decoder := json.NewDecoder(bufReader)
+	scanner := bufio.NewScanner(bufReader)
 	
 	var count int64
 	
-	for {
+	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
 			g.log("warn", l10n.T("Backlog counting cancelled"), "entries_counted", count)
 			return count, ctx.Err()
 		default:
-			var entry struct{}
-			if err := decoder.Decode(&entry); err != nil {
-				if err == io.EOF {
-					// End of file reached
-					g.log("info", l10n.T("Backlog counting completed"), "total_entries", count, "file_path", g.filePath)
-					return count, nil
+			relPath := strings.TrimSpace(scanner.Text())
+			if relPath != "" {
+				count++
+				
+				if count%10000 == 0 {
+					g.log("debug", l10n.T("Backlog counting progress"), "entries_counted", count)
 				}
-				g.log("error", l10n.T("Failed to decode backlog entry during counting"), "error", err, "entries_counted", count)
-				return count, fmt.Errorf("failed to decode backlog entry: %w", err)
-			}
-			count++
-			
-			if count%10000 == 0 {
-				g.log("debug", l10n.T("Backlog counting progress"), "entries_counted", count)
 			}
 		}
 	}
+	
+	if err := scanner.Err(); err != nil {
+		g.log("error", l10n.T("Failed to scan backlog file during counting"), "error", err, "entries_counted", count)
+		return count, fmt.Errorf("failed to scan backlog file: %w", err)
+	}
+	
+	g.log("info", l10n.T("Backlog counting completed"), "total_entries", count, "file_path", g.filePath)
+	return count, nil
 }
 
-// backlogFileInfo implements FileInfo interface for backlog entries
-type backlogFileInfo struct {
-	relPath string
-	absPath string
-	size    int64
-	modTime int64
-}
-
-func (b *backlogFileInfo) GetRelPath() string {
-	return b.relPath
-}
-
-func (b *backlogFileInfo) GetAbsPath() string {
-	return b.absPath
-}
-
-func (b *backlogFileInfo) GetSize() int64 {
-	return b.size
-}
-
-func (b *backlogFileInfo) GetModTime() int64 {
-	return b.modTime
-}

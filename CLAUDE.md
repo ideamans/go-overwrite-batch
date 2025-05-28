@@ -239,29 +239,32 @@ backlogPath := "/tmp/processing.backlog.gz"
 manager := backlog.NewGzipBacklogManager(backlogPath)
 manager.SetLogger(logger)
 
-// Writing entries
-entriesChan := make(chan backlog.FileInfo, 100)
+// Writing relative paths
+relPathsChan := make(chan string, 100)
 go func() {
-    defer close(entriesChan)
-    // Add file entries...
+    defer close(relPathsChan)
+    relPathsChan <- "file1.txt"
+    relPathsChan <- "dir/file2.txt"
+    // Add more relative paths...
 }()
-err := manager.StartWriting(ctx, entriesChan)
+err := manager.StartWriting(ctx, relPathsChan)
 
-// Reading entries
+// Reading relative paths
 readChan, err := manager.StartReading(ctx)
-for entry := range readChan {
-    // Process entry...
+for relPath := range readChan {
+    // Process relative path...
 }
 
-// Count entries for progress tracking
-count, err := manager.CountEntries(ctx)
+// Count relative paths for progress tracking
+count, err := manager.CountRelPaths(ctx)
 ```
 
 ### File Format
-Backlog files use gzip-compressed JSON with one file entry per line:
-```json
-{"rel_path":"file1.txt","abs_path":"/root/file1.txt","size":1024,"mod_time":1640995200}
-{"rel_path":"dir/file2.txt","abs_path":"/root/dir/file2.txt","size":2048,"mod_time":1640995300}
+Backlog files use gzip-compressed text with one relative path per line:
+```
+file1.txt
+dir/file2.txt
+subdir/file3.txt
 ```
 
 # Graceful Shutdown
