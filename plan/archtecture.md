@@ -7,13 +7,13 @@ UnifiedOverwriteBatchFlow (UOBF) は、様々なファイルシステム（ロ�
 ## アーキテクチャ概要
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ProcessingWorkflow                           │
-│  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────────┐ │
-│  │  ScanAndFilter  │  │  ProcessFiles    │  │  Logger         │ │
-│  │      Phase      │  │      Phase       │  │  Integration    │ │
-│  └─────────────────┘  └──────────────────┘  └─────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              ProcessingWorkflow                             │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────────┐ ┌─────────┐ │
+│  │  ScanAndFilter  │  │  ProcessFiles    │  │  Logger         │ │  l10n   │ │
+│  │      Phase      │  │      Phase       │  │  Integration    │ │ Package │ │
+│  └─────────────────┘  └──────────────────┘  └─────────────────┘ └─────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
                                │
           ┌────────────────────┼────────────────────┐
           │                    │                    │
@@ -175,6 +175,54 @@ type BacklogManager interface {
 {"name":"file1.txt","size":1024,"path":"/data/file1.txt",...}
 {"name":"file2.txt","size":2048,"path":"/data/file2.txt",...}
 ```
+
+### 5. l10n Package (国際化・多言語対応)
+
+**役割**: ログメッセージ、エラーメッセージ、ユーザー向けテキストの多言語化
+
+```go
+// l10n/l10n.go
+func T(phrase string) string         // 翻訳関数
+func Register(lang string, lex LexiconMap) // 翻訳辞書登録
+func DetectLanguage()                // 環境変数からの言語自動検出
+```
+
+**責任範囲**:
+
+- **言語検出**: 環境変数（LANGUAGE, LC_ALL, LC_MESSAGES, LANG）からの自動言語判定
+- **翻訳管理**: 基本フレーズと翻訳フレーズのマッピング管理
+- **フォールバック**: 翻訳が存在しない場合のオリジナルフレーズ返却
+- **拡張性**: 追加言語・翻訳の動的登録
+
+**対応言語**:
+
+- **English (en)**: デフォルト言語
+- **Japanese (ja)**: 第一対応言語
+
+**アーキテクチャでの統合**:
+
+```go
+// 全コンポーネントでl10n.T()を使用
+logger.Info(l10n.T("Starting file processing"), "count", fileCount)
+logger.Error(l10n.T("Failed to connect to filesystem"), "error", err)
+
+// エラーメッセージの国際化
+return fmt.Errorf(l10n.T("file not found: %s"), filename)
+
+// 翻訳辞書の登録
+l10n.Register("ja", l10n.LexiconMap{
+    "Starting file processing": "ファイル処理を開始します",
+    "Failed to connect to filesystem": "ファイルシステムへの接続に失敗しました",
+    "file not found: %s": "ファイルが見つかりません: %s",
+})
+```
+
+**設計原則**:
+
+1. **全ユーザー向けメッセージの国際化**: ログ、エラー、進捗表示など
+2. **英語ベース**: 基本フレーズは英語で記述、他言語は翻訳として追加
+3. **透過的統合**: 既存コードへの最小限の変更で国際化対応
+4. **拡張可能性**: 新言語・翻訳の容易な追加
 
 ## データフロー
 
