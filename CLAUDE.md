@@ -186,7 +186,36 @@ The system automatically detects the user's language preference on initializatio
 - Defaults to English if no supported language is detected
 - Currently supports Japanese and English language tags
 
-This localization infrastructure ensures UOBF can be effectively used by international teams and in diverse deployment environments.
+## Test Mode Language Handling
+
+**IMPORTANT**: During test execution, the language is automatically fixed to English (`"en"`) to ensure consistent test results:
+
+- **Automatic Test Detection**: The system detects test mode by checking command-line arguments for `.test`, `-test.`, or `_test` patterns
+- **Language Consistency**: All log messages and error messages use English during tests, regardless of environment variables
+- **Manual Control**: Use `l10n.ForceLanguage()` for specific test scenarios requiring different languages
+
+### Testing Guidelines
+
+```go
+func TestWithJapanese(t *testing.T) {
+    // Force Japanese for specific test scenarios
+    l10n.ForceLanguage("ja")
+    defer l10n.ResetLanguage() // Reset to automatic detection
+    
+    // Test code that expects Japanese messages
+    result := l10n.T("File processing completed successfully")
+    assert.Equal(t, "ファイル処理が正常に完了しました", result)
+}
+
+func TestNormalOperation(t *testing.T) {
+    // Normal tests automatically use English
+    // No special setup required
+    result := l10n.T("File processing completed successfully") 
+    assert.Equal(t, "File processing completed successfully", result)
+}
+```
+
+This localization infrastructure ensures UOBF can be effectively used by international teams and in diverse deployment environments while maintaining test reliability.
 
 # Graceful Shutdown
 

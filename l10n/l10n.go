@@ -2,6 +2,7 @@ package l10n
 
 import (
 	"os"
+	"strings"
 
 	"golang.org/x/text/language"
 )
@@ -15,9 +16,25 @@ type WorldMap map[string]LexiconMap
 var (
 	// 現在アクティブな言語
 	Language = "en"
+	
+	// テスト中の言語固定フラグ
+	forcedLanguage string
+	isLanguageForced bool
 )
 
 func DetectLanguage() {
+	// 言語が強制設定されている場合はそれを使用
+	if isLanguageForced {
+		Language = forcedLanguage
+		return
+	}
+	
+	// テスト実行中かチェック（テスト中は英語に固定）
+	if isTestMode() {
+		Language = "en"
+		return
+	}
+
 	// 環境変数から言語を判定
 	langs := []string{
 		os.Getenv("LANGUAGE"),
@@ -80,6 +97,39 @@ var (
 		"ja": LexiconMap{},
 	}
 )
+
+// isTestMode checks if the code is running in test mode
+func isTestMode() bool {
+	// Goのテスト実行中は、実行可能ファイル名に.testが含まれる
+	// または、引数にtest関連のフラグが含まれる
+	for _, arg := range os.Args {
+		if strings.Contains(arg, ".test") || 
+		   strings.Contains(arg, "-test.") ||
+		   strings.HasSuffix(arg, "_test") {
+			return true
+		}
+	}
+	return false
+}
+
+// ForceLanguage forces the language to a specific value (primarily for testing)
+func ForceLanguage(lang string) {
+	forcedLanguage = lang
+	isLanguageForced = true
+	Language = lang
+}
+
+// ResetLanguage resets language detection to automatic mode
+func ResetLanguage() {
+	isLanguageForced = false
+	forcedLanguage = ""
+	DetectLanguage()
+}
+
+// GetCurrentLanguage returns the currently active language
+func GetCurrentLanguage() string {
+	return Language
+}
 
 func init() {
 	DetectLanguage()
