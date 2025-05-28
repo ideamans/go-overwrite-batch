@@ -32,6 +32,10 @@ func (t *testLogger) Warn(msg string, fields ...interface{}) {
 	t.messages = append(t.messages, "WARN: "+msg)
 }
 
+func (t *testLogger) WithFields(fields map[string]interface{}) Logger {
+	return t
+}
+
 func init() {
 	// Force English for consistent test results
 	l10n.ForceLanguage("en")

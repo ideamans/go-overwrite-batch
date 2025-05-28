@@ -12,6 +12,15 @@ import (
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
 
+// Logger interface for structured logging
+type Logger interface {
+	Info(msg string, fields ...interface{})
+	Error(msg string, fields ...interface{})
+	Debug(msg string, fields ...interface{})
+	Warn(msg string, fields ...interface{})
+	WithFields(fields map[string]interface{}) Logger
+}
+
 func init() {
 	// Register Japanese translations for backlog operations
 	l10n.Register("ja", l10n.LexiconMap{
@@ -38,13 +47,6 @@ func init() {
 	})
 }
 
-// Logger interface for structured logging
-type Logger interface {
-	Info(msg string, fields ...interface{})
-	Error(msg string, fields ...interface{})
-	Debug(msg string, fields ...interface{})
-	Warn(msg string, fields ...interface{})
-}
 
 // GzipBacklogManager implements BacklogManager with gzip compression
 type GzipBacklogManager struct {
