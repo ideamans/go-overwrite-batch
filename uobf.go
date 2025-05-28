@@ -20,7 +20,8 @@ type FileInfo struct {
 	Mode    uint32    `json:"mode"`
 	ModTime time.Time `json:"mod_time"`
 	IsDir   bool      `json:"is_dir"`
-	Path    string    `json:"path"` // Relative path from the root
+	RelPath string    `json:"rel_path"` // Relative path from the root
+	AbsPath string    `json:"abs_path"` // Absolute path
 }
 
 // Logger provides a standard logging interface
@@ -70,7 +71,7 @@ type FileSystem interface {
 	Close() error
 
 	// Walk traverses directories with options and sends FileInfo to the channel
-	Walk(ctx context.Context, rootPath string, options WalkOptions, ch chan<- FileInfo) error
+	Walk(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error
 
 	// Download downloads a file from the filesystem to local path
 	Download(ctx context.Context, remotePath, localPath string) error
@@ -259,7 +260,7 @@ func (w *ProcessingWorkflow) ScanAndFilter(ctx context.Context, options ScanAndF
 	go func() {
 		defer close(walkCh)
 		w.logger.Debug("Starting filesystem walk", "root_path", options.RootPath)
-		if err := w.fs.Walk(ctx, options.RootPath, options.WalkOptions, walkCh); err != nil {
+		if err := w.fs.Walk(ctx, options.WalkOptions, walkCh); err != nil {
 			w.logger.Error("Error during filesystem walk", "error", err)
 		}
 	}()

@@ -13,13 +13,15 @@ import (
 
 // LocalFileSystem implements FileSystem interface for local filesystem operations
 type LocalFileSystem struct {
-	logger uobf.Logger
+	rootPath string
+	logger   uobf.Logger
 }
 
-// NewLocalFileSystem creates a new LocalFileSystem instance
-func NewLocalFileSystem() *LocalFileSystem {
+// NewLocalFileSystem creates a new LocalFileSystem instance with the specified root path
+func NewLocalFileSystem(rootPath string) *LocalFileSystem {
 	return &LocalFileSystem{
-		logger: &uobf.NoOpLogger{},
+		rootPath: filepath.Clean(rootPath),
+		logger:   &uobf.NoOpLogger{},
 	}
 }
 
@@ -34,17 +36,16 @@ func (l *LocalFileSystem) SetLogger(logger uobf.Logger) {
 }
 
 // Walk traverses directories with options and sends FileInfo to the channel
-func (l *LocalFileSystem) Walk(ctx context.Context, rootPath string, options uobf.WalkOptions, ch chan<- uobf.FileInfo) error {
-	l.logger.Debug("Starting local filesystem walk", "root_path", rootPath, "options", options)
+func (l *LocalFileSystem) Walk(ctx context.Context, options uobf.WalkOptions, ch chan<- uobf.FileInfo) error {
+	l.logger.Debug("Starting local filesystem walk", "root_path", l.rootPath, "options", options)
 
-	// Clean and validate root path
-	rootPath = filepath.Clean(rootPath)
-	if _, err := os.Stat(rootPath); err != nil {
-		l.logger.Error("Root path does not exist", "path", rootPath, "error", err)
+	// Validate root path
+	if _, err := os.Stat(l.rootPath); err != nil {
+		l.logger.Error("Root path does not exist", "path", l.rootPath, "error", err)
 		return fmt.Errorf("root path does not exist: %w", err)
 	}
 
-	return filepath.WalkDir(rootPath, func(path string, d os.DirEntry, err error) error {
+	return filepath.WalkDir(l.rootPath, func(path string, d os.DirEntry, err error) error {
 		select {
 		case <-ctx.Done():
 			l.logger.Debug("Walk cancelled by context", "path", path)
@@ -64,7 +65,7 @@ func (l *LocalFileSystem) Walk(ctx context.Context, rootPath string, options uob
 
 		// Check max depth (only if MaxDepth is explicitly set > 0)
 		if options.MaxDepth > 0 {
-			relPath, err := filepath.Rel(rootPath, path)
+			relPath, err := filepath.Rel(l.rootPath, path)
 			if err != nil {
 				l.logger.Warn("Failed to get relative path", "path", path, "error", err)
 				return nil
@@ -94,7 +95,7 @@ func (l *LocalFileSystem) Walk(ctx context.Context, rootPath string, options uob
 		}
 
 		// Create relative path for FileInfo
-		relPath, err := filepath.Rel(rootPath, path)
+		relPath, err := filepath.Rel(l.rootPath, path)
 		if err != nil {
 			l.logger.Warn("Failed to get relative path", "path", path, "error", err)
 			return nil
@@ -111,19 +112,20 @@ func (l *LocalFileSystem) Walk(ctx context.Context, rootPath string, options uob
 			Mode:    uint32(info.Mode()),
 			ModTime: info.ModTime(),
 			IsDir:   info.IsDir(),
-			Path:    filepath.ToSlash(relPath), // Convert to forward slashes for consistency
+			RelPath: filepath.ToSlash(relPath), // Convert to forward slashes for consistency
+			AbsPath: path,
 		}
 
 		// Apply include/exclude filters
 		if l.shouldIncludeFile(fileInfo, options) {
-			l.logger.Debug("Sending file to channel", "path", fileInfo.Path, "size", fileInfo.Size)
+			l.logger.Debug("Sending file to channel", "rel_path", fileInfo.RelPath, "abs_path", fileInfo.AbsPath, "size", fileInfo.Size)
 			select {
 			case ch <- fileInfo:
 			case <-ctx.Done():
 				return ctx.Err()
 			}
 		} else {
-			l.logger.Debug("File filtered out", "path", fileInfo.Path)
+			l.logger.Debug("File filtered out", "rel_path", fileInfo.RelPath)
 		}
 
 		return nil
@@ -225,13 +227,21 @@ func (l *LocalFileSystem) Upload(ctx context.Context, localPath, remotePath stri
 		return nil, fmt.Errorf("failed to stat uploaded file: %w", err)
 	}
 
+	// Create relative path for uploaded file
+	relPath, err := filepath.Rel(l.rootPath, remotePath)
+	if err != nil {
+		l.logger.Warn("Failed to get relative path for uploaded file", "path", remotePath, "error", err)
+		relPath = remotePath // fallback to absolute path
+	}
+
 	fileInfo := &uobf.FileInfo{
 		Name:    uploadedInfo.Name(),
 		Size:    uploadedInfo.Size(),
 		Mode:    uint32(uploadedInfo.Mode()),
 		ModTime: uploadedInfo.ModTime(),
 		IsDir:   uploadedInfo.IsDir(),
-		Path:    remotePath,
+		RelPath: filepath.ToSlash(relPath),
+		AbsPath: remotePath,
 	}
 
 	l.logger.Info("File uploaded successfully", "local_path", localPath, "remote_path", remotePath, "size", size)
@@ -286,7 +296,7 @@ func (l *LocalFileSystem) shouldIncludeFile(fileInfo uobf.FileInfo, options uobf
 	if len(options.Include) > 0 {
 		matched := false
 		for _, pattern := range options.Include {
-			if l.matchPattern(fileInfo.Path, pattern) {
+			if l.matchPattern(fileInfo.RelPath, pattern) {
 				matched = true
 				break
 			}
@@ -299,7 +309,7 @@ func (l *LocalFileSystem) shouldIncludeFile(fileInfo uobf.FileInfo, options uobf
 	// If exclude patterns are specified, file must not match any
 	if len(options.Exclude) > 0 {
 		for _, pattern := range options.Exclude {
-			if l.matchPattern(fileInfo.Path, pattern) {
+			if l.matchPattern(fileInfo.RelPath, pattern) {
 				return false
 			}
 		}

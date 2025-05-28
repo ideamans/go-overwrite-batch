@@ -12,19 +12,20 @@ import (
 )
 
 func TestNewLocalFileSystem(t *testing.T) {
-	fs := NewLocalFileSystem()
+	fs := NewLocalFileSystem("/test/path")
 	assert.NotNil(t, fs)
 	assert.NotNil(t, fs.logger)
+	assert.Equal(t, "/test/path", fs.rootPath)
 }
 
 func TestLocalFileSystem_Close(t *testing.T) {
-	fs := NewLocalFileSystem()
+	fs := NewLocalFileSystem("/test/path")
 	err := fs.Close()
 	assert.NoError(t, err)
 }
 
 func TestLocalFileSystem_SetLogger(t *testing.T) {
-	fs := NewLocalFileSystem()
+	fs := NewLocalFileSystem("/test/path")
 	mockLogger := &mockLogger{}
 	fs.SetLogger(mockLogger)
 	assert.Equal(t, mockLogger, fs.logger)
@@ -119,7 +120,7 @@ func TestLocalFileSystem_Walk(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fs := NewLocalFileSystem()
+			fs := NewLocalFileSystem(tt.rootPath)
 			fs.SetLogger(&mockLogger{})
 
 			ch := make(chan uobf.FileInfo, 100)
@@ -129,13 +130,13 @@ func TestLocalFileSystem_Walk(t *testing.T) {
 			done := make(chan error, 1)
 			go func() {
 				defer close(ch)
-				done <- fs.Walk(ctx, tt.rootPath, tt.options, ch)
+				done <- fs.Walk(ctx, tt.options, ch)
 			}()
 
 			// Collect results
 			var results []string
 			for fileInfo := range ch {
-				results = append(results, fileInfo.Path)
+				results = append(results, fileInfo.RelPath)
 			}
 
 			err := <-done
@@ -157,13 +158,13 @@ func TestLocalFileSystem_Walk_ContextCancellation(t *testing.T) {
 
 	createTestFiles(t, tempDir)
 
-	fs := NewLocalFileSystem()
+	fs := NewLocalFileSystem(tempDir)
 	ch := make(chan uobf.FileInfo, 100)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	err = fs.Walk(ctx, tempDir, uobf.WalkOptions{}, ch)
+	err = fs.Walk(ctx, uobf.WalkOptions{}, ch)
 	assert.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 }
@@ -207,7 +208,7 @@ func TestLocalFileSystem_Download(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fs := NewLocalFileSystem()
+			fs := NewLocalFileSystem(tempDir)
 			fs.SetLogger(&mockLogger{})
 
 			err := fs.Download(context.Background(), tt.remotePath, tt.localPath)
@@ -236,7 +237,7 @@ func TestLocalFileSystem_Download_ContextCancellation(t *testing.T) {
 	err = os.WriteFile(srcFile, []byte("test content"), 0644)
 	require.NoError(t, err)
 
-	fs := NewLocalFileSystem()
+	fs := NewLocalFileSystem(tempDir)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
@@ -290,7 +291,7 @@ func TestLocalFileSystem_Upload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fs := NewLocalFileSystem()
+			fs := NewLocalFileSystem(tempDir)
 			fs.SetLogger(&mockLogger{})
 
 			fileInfo, err := fs.Upload(context.Background(), tt.localPath, tt.remotePath)
@@ -305,8 +306,11 @@ func TestLocalFileSystem_Upload(t *testing.T) {
 				// Verify file info
 				assert.Equal(t, filepath.Base(tt.remotePath), fileInfo.Name)
 				assert.Equal(t, int64(len(content)), fileInfo.Size)
-				assert.Equal(t, tt.remotePath, fileInfo.Path)
+				assert.Equal(t, tt.remotePath, fileInfo.AbsPath)
 				assert.False(t, fileInfo.IsDir)
+				// RelPath should be relative to tempDir
+				expectedRelPath, _ := filepath.Rel(tempDir, tt.remotePath)
+				assert.Equal(t, filepath.ToSlash(expectedRelPath), fileInfo.RelPath)
 
 				// Verify file was copied correctly
 				uploadedContent, err := os.ReadFile(tt.remotePath)
@@ -327,7 +331,7 @@ func TestLocalFileSystem_Upload_ContextCancellation(t *testing.T) {
 	err = os.WriteFile(srcFile, []byte("test content"), 0644)
 	require.NoError(t, err)
 
-	fs := NewLocalFileSystem()
+	fs := NewLocalFileSystem(tempDir)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
@@ -344,7 +348,7 @@ func TestLocalFileSystem_Upload_ContextCancellation(t *testing.T) {
 }
 
 func TestLocalFileSystem_shouldIncludeFile(t *testing.T) {
-	fs := NewLocalFileSystem()
+	fs := NewLocalFileSystem("/test/path")
 
 	tests := []struct {
 		name     string
@@ -354,37 +358,37 @@ func TestLocalFileSystem_shouldIncludeFile(t *testing.T) {
 	}{
 		{
 			name:     "no filters - include all",
-			fileInfo: uobf.FileInfo{Path: "test.txt"},
+			fileInfo: uobf.FileInfo{RelPath: "test.txt"},
 			options:  uobf.WalkOptions{},
 			expected: true,
 		},
 		{
 			name:     "include pattern matches",
-			fileInfo: uobf.FileInfo{Path: "test.txt"},
+			fileInfo: uobf.FileInfo{RelPath: "test.txt"},
 			options:  uobf.WalkOptions{Include: []string{"*.txt"}},
 			expected: true,
 		},
 		{
 			name:     "include pattern doesn't match",
-			fileInfo: uobf.FileInfo{Path: "test.log"},
+			fileInfo: uobf.FileInfo{RelPath: "test.log"},
 			options:  uobf.WalkOptions{Include: []string{"*.txt"}},
 			expected: false,
 		},
 		{
 			name:     "exclude pattern matches",
-			fileInfo: uobf.FileInfo{Path: "test.log"},
+			fileInfo: uobf.FileInfo{RelPath: "test.log"},
 			options:  uobf.WalkOptions{Exclude: []string{"*.log"}},
 			expected: false,
 		},
 		{
 			name:     "exclude pattern doesn't match",
-			fileInfo: uobf.FileInfo{Path: "test.txt"},
+			fileInfo: uobf.FileInfo{RelPath: "test.txt"},
 			options:  uobf.WalkOptions{Exclude: []string{"*.log"}},
 			expected: true,
 		},
 		{
 			name:     "include and exclude - include wins",
-			fileInfo: uobf.FileInfo{Path: "test.txt"},
+			fileInfo: uobf.FileInfo{RelPath: "test.txt"},
 			options:  uobf.WalkOptions{Include: []string{"*.txt"}, Exclude: []string{"test.*"}},
 			expected: false, // exclude takes precedence
 		},
@@ -399,7 +403,7 @@ func TestLocalFileSystem_shouldIncludeFile(t *testing.T) {
 }
 
 func TestLocalFileSystem_matchPattern(t *testing.T) {
-	fs := NewLocalFileSystem()
+	fs := NewLocalFileSystem("/test/path")
 
 	tests := []struct {
 		name     string
