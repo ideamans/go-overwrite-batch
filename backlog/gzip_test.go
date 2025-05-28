@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
 
@@ -32,7 +33,7 @@ func (t *testLogger) Warn(msg string, fields ...interface{}) {
 	t.messages = append(t.messages, "WARN: "+msg)
 }
 
-func (t *testLogger) WithFields(fields map[string]interface{}) Logger {
+func (t *testLogger) WithFields(fields map[string]interface{}) common.Logger {
 	return t
 }
 

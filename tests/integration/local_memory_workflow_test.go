@@ -27,7 +27,8 @@ type memoryBacklogWrapper struct {
 }
 
 func (w *memoryBacklogWrapper) SetLogger(logger uobf.Logger) {
-	// Skip setting logger to avoid interface compatibility issues
+	// Convert uobf.Logger to backlog.Logger and set it
+	w.MemoryBacklogManager.SetLogger(logger)
 }
 
 func TestLocalMemoryWorkflowIntegration(t *testing.T) {
@@ -62,11 +63,19 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	defer cancel()
 	
 	// Create components
+	logger := &uobf.NoOpLogger{}
+	
 	localFS := filesystem.NewLocalFileSystem(tempDir)
+	localFS.SetLogger(logger)
+	
 	statusMemory := status.NewMemoryStatusMemory()
+	statusMemory.SetLogger(logger)
+	
 	memoryBacklog1 := &memoryBacklogWrapper{backlog.NewMemoryBacklogManager()}
+	memoryBacklog1.SetLogger(logger)
 	
 	workflow1 := uobf.NewOverwriteWorkflow(localFS, statusMemory, memoryBacklog1)
+	workflow1.SetLogger(logger)
 
 	// Configure scan options
 	scanOptions := uobf.ScanAndFilterOptions{
@@ -147,8 +156,10 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 
 	// Step 5: Second scan run
 	memoryBacklog2 := &memoryBacklogWrapper{backlog.NewMemoryBacklogManager()}
+	memoryBacklog2.SetLogger(logger)
 	
 	workflow2 := uobf.NewOverwriteWorkflow(localFS, statusMemory, memoryBacklog2)
+	workflow2.SetLogger(logger)
 
 	// Run second scan
 	if err := workflow2.ScanAndFilter(ctx, scanOptions); err != nil {

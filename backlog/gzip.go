@@ -9,17 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
 
-// Logger interface for structured logging
-type Logger interface {
-	Info(msg string, fields ...interface{})
-	Error(msg string, fields ...interface{})
-	Debug(msg string, fields ...interface{})
-	Warn(msg string, fields ...interface{})
-	WithFields(fields map[string]interface{}) Logger
-}
 
 func init() {
 	// Register Japanese translations for backlog operations
@@ -51,7 +44,7 @@ func init() {
 // GzipBacklogManager implements BacklogManager with gzip compression
 type GzipBacklogManager struct {
 	filePath string
-	logger   Logger
+	logger   common.Logger
 }
 
 // NewGzipBacklogManager creates a new GzipBacklogManager for the specified file path
@@ -62,7 +55,7 @@ func NewGzipBacklogManager(filePath string) *GzipBacklogManager {
 }
 
 // SetLogger sets the logger for the backlog manager
-func (g *GzipBacklogManager) SetLogger(logger Logger) {
+func (g *GzipBacklogManager) SetLogger(logger common.Logger) {
 	g.logger = logger
 }
 

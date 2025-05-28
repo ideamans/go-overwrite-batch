@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
+
 
 
 
@@ -32,7 +34,7 @@ func init() {
 type MemoryBacklogManager struct {
 	mu       sync.RWMutex
 	entries  []string
-	logger   Logger
+	logger   common.Logger
 }
 
 // NewMemoryBacklogManager creates a new in-memory backlog manager
@@ -43,7 +45,7 @@ func NewMemoryBacklogManager() *MemoryBacklogManager {
 }
 
 // SetLogger sets the logger for the backlog manager
-func (m *MemoryBacklogManager) SetLogger(logger Logger) {
+func (m *MemoryBacklogManager) SetLogger(logger common.Logger) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.logger = logger
