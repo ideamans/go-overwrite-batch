@@ -80,3 +80,7 @@ var (
 		"ja": LexiconMap{},
 	}
 )
+
+func init() {
+	DetectLanguage()
+}
