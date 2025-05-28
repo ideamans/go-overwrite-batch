@@ -200,10 +200,11 @@ type RetryableError interface {
 	IsRetryable() bool
 }
 
-// NetworkError represents network-related errors that should be retried
+// NetworkError represents network-related errors that may be retried
 type NetworkError struct {
-	Operation string
-	Cause     error
+	Operation   string
+	Cause       error
+	ShouldRetry bool
 }
 
 func (e *NetworkError) Error() string {
@@ -211,7 +212,7 @@ func (e *NetworkError) Error() string {
 }
 
 func (e *NetworkError) IsRetryable() bool {
-	return true
+	return e.ShouldRetry
 }
 
 // =============================================================================

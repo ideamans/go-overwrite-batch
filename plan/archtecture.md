@@ -145,7 +145,7 @@ Value: {
 **実装バリエーション**:
 
 - **KVSStatusMemory**: 汎用KVSストレージ使用
-- **RedisStatusMemory**: Redis使用、高速アクセス
+- **LevelDBStatusMemory**: LevelDB使用、組み込み型ストレージ
 - **MemoryStatusMemory**: インメモリ、テスト用途
 
 ### 4. BacklogManager Interface (処理待ちファイル管理)
@@ -288,7 +288,7 @@ fs.SetLogger(logger.WithFields(map[string]interface{}{
 
 statusMemory.SetLogger(logger.WithFields(map[string]interface{}{
     "component": "status_memory", 
-    "backend": "redis"
+    "backend": "leveldb"
 }))
 ```
 
@@ -353,7 +353,7 @@ func (d *DatabaseStatusMemory) NeedsProcessing(ctx context.Context, entries <-ch
 
 ### ボトルネック対策
 
-- **StatusMemory**: Redisクラスタリング、読み取り専用レプリカ
+- **StatusMemory**: LevelDBの最適化、データベースファイルの配置
 - **FileSystem**: 接続プール、Keep-Alive
 - **BacklogManager**: SSDの使用、一時ファイルの配置最適化
 
@@ -370,5 +370,197 @@ func (d *DatabaseStatusMemory) NeedsProcessing(ctx context.Context, entries <-ch
 - **接続情報**: 環境変数での管理推奨
 - **一時ファイル**: 処理後の確実な削除
 - **ログ**: 機密情報のマスキング
+
+## グレースフルシャットダウン
+
+### 基本方針
+
+システムの安全な停止を保証し、特にファイルアップロード中の中断を防ぐ仕組みを提供します。
+
+### シャットダウンフロー
+
+```go
+// シャットダウン処理の例
+func (w *ProcessingWorkflow) Shutdown(ctx context.Context) error {
+    // 1. 新しいタスクの受付停止
+    w.stopAcceptingNewTasks()
+    
+    // 2. 現在進行中のタスクを監視
+    // ダウンロード・処理フェーズは即座に停止可能
+    // アップロードフェーズは完了を待つ
+    
+    // 3. リソースクリーンアップ
+    return w.cleanup(ctx)
+}
+```
+
+### アップロード保護
+
+**要件**: ファイルアップロード中はシャットダウン信号に応じない
+
+```go
+// アップロード処理では独立したコンテキストを使用
+func (w *ProcessingWorkflow) uploadFile(fileInfo FileInfo, localPath string) error {
+    // アップロード専用コンテキスト（キャンセル不可）
+    uploadCtx := context.Background()
+    
+    // アップロード完了まで中断されない
+    uploadedInfo, err := w.fs.Upload(uploadCtx, localPath, fileInfo.Path)
+    if err != nil {
+        return err
+    }
+    
+    // ステータス更新
+    return w.statusMemory.ReportDone(uploadCtx, *uploadedInfo)
+}
+```
+
+### ワーカープール管理
+
+```go
+type WorkerPool struct {
+    workers       []*Worker
+    shutdownCh    chan struct{}
+    uploadingTasks sync.WaitGroup
+}
+
+func (p *WorkerPool) Shutdown(timeout time.Duration) error {
+    // シャットダウン開始
+    close(p.shutdownCh)
+    
+    // アップロード中のタスク完了を待機
+    done := make(chan struct{})
+    go func() {
+        p.uploadingTasks.Wait()
+        close(done)
+    }()
+    
+    select {
+    case <-done:
+        return nil
+    case <-time.After(timeout):
+        return errors.New("shutdown timeout: uploads still in progress")
+    }
+}
+```
+
+### リソースクリーンアップ
+
+1. **ファイルシステム接続**: 全接続の適切なクローズ
+2. **一時ファイル**: 未完了タスクの一時ファイル削除
+3. **StatusMemory**: データベース接続のクローズ
+4. **ログファイル**: バッファのフラッシュ
+
+## テスト戦略
+
+### 単体テスト
+
+各パッケージの基本機能をテストし、インターフェースの動作を検証します。
+
+### Dockerコンテナを使用した統合テスト
+
+リモートファイルシステムの実装は、実際のプロトコルサーバーを模擬したDockerコンテナを使用してテストします。
+
+#### 対応プロトコル
+
+- **SFTP**: `atmoz/sftp` コンテナ
+- **FTP**: `stilliard/pure-ftpd` コンテナ  
+- **WebDAV**: `bytemark/webdav` コンテナ
+- **S3**: `minio/minio` コンテナ（S3互換API）
+
+#### testcontainers-goを使用したテスト実行フロー
+
+```go
+//go:build integration
+
+import (
+    "context"
+    "testing"
+    "github.com/testcontainers/testcontainers-go"
+    "github.com/testcontainers/testcontainers-go/wait"
+)
+
+func TestSFTPFileSystem_E2E(t *testing.T) {
+    ctx := context.Background()
+    
+    // 1. SFTPコンテナを動的に起動
+    req := testcontainers.ContainerRequest{
+        Image:        "atmoz/sftp",
+        ExposedPorts: []string{"22/tcp"},
+        Cmd:          []string{"testuser:testpass:1001"},
+        WaitingFor:   wait.ForListeningPort("22/tcp"),
+    }
+    
+    container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+        ContainerRequest: req,
+        Started:          true,
+    })
+    require.NoError(t, err)
+    defer container.Terminate(ctx)
+    
+    // 2. 動的ポート取得
+    host, _ := container.Host(ctx)
+    port, _ := container.MappedPort(ctx, "22")
+    
+    // 3. ファイルシステム接続
+    config := SFTPConfig{
+        Host:     host,
+        Port:     port.Int(),
+        Username: "testuser",
+        Password: "testpass",
+    }
+    fs := NewSFTPFileSystem(config)
+    
+    // 4. 実際のファイル操作テスト
+    testFileOperations(t, fs)
+}
+```
+
+#### dockertest/v3を使用した軽量テスト
+
+```go
+//go:build integration
+
+import (
+    "github.com/ory/dockertest/v3"
+    "github.com/ory/dockertest/v3/docker"
+)
+
+func TestFTPFileSystem_E2E(t *testing.T) {
+    pool, err := dockertest.NewPool("")
+    require.NoError(t, err)
+    
+    // 1. FTPコンテナ起動
+    resource, err := pool.RunWithOptions(&dockertest.RunOptions{
+        Repository: "stilliard/pure-ftpd",
+        Tag:        "hardened",
+        Env: []string{
+            "PUBLICHOST=localhost",
+            "FTP_USER_NAME=testuser",
+            "FTP_USER_PASS=testpass",
+        },
+    })
+    require.NoError(t, err)
+    defer pool.Purge(resource)
+    
+    // 2. 接続確認
+    pool.Retry(func() error {
+        config := FTPConfig{
+            Host:     "localhost",
+            Port:     resource.GetPort("21/tcp"),
+            Username: "testuser",
+            Password: "testpass",
+        }
+        fs := NewFTPFileSystem(config)
+        return fs.Connect()
+    })
+    
+    // 3. テスト実行
+    testFileOperations(t, fs)
+}
+
+### E2Eテスト
+
+実際のワークフロー全体（スキャン→フィルタリング→処理）をDockerコンテナ環境で実行し、エンドツーエンドの動作を検証します。
 
 このアーキテクチャにより、大規模なファイル処理を効率的かつ安全に実行できるフレームワークを提供します。

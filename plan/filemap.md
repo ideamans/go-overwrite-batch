@@ -25,7 +25,7 @@ unified-overwrite-batch-flow/
 │   ├── status.go              # StatusMemoryインターフェース基底実装
 │   ├── kvs.go                 # KVSベースのStatusMemory実装
 │   ├── memory.go              # インメモリ実装（テスト用）
-│   └── redis.go               # Redis実装
+│   └── leveldb.go             # LevelDB実装
 │
 ├── backlog/                    # バックログ管理実装  
 │   ├── backlog.go             # BacklogManagerインターフェース基底実装
@@ -62,10 +62,13 @@ unified-overwrite-batch-flow/
 │       └── slog_adapter.go
 │
 ├── tests/                      # テストファイル
-│   ├── integration/           # 統合テスト
+│   ├── integration/           # 統合テスト（Dockerコンテナ使用）
 │   │   ├── filesystem_test.go
 │   │   ├── workflow_test.go
-│   │   └── end_to_end_test.go
+│   │   ├── end_to_end_test.go
+│   │   └── helpers/           # テストヘルパー
+│   │       ├── containers.go  # testcontainers-go管理
+│   │       └── dockertest.go  # dockertest/v3管理
 │   ├── mocks/                 # モックオブジェクト
 │   │   ├── filesystem_mock.go
 │   │   ├── status_mock.go
@@ -105,6 +108,9 @@ unified-overwrite-batch-flow/
 
 - 単体テスト（各パッケージ内の *_test.go）
 - 統合テスト（tests/integration/）
+  - testcontainers-goとdockertest/v3を使用したプログラマティックなコンテナ管理
+  - リモートファイルシステムの動的テスト環境
+  - E2E テスト（全体ワークフローテスト）
 - モック（tests/mocks/）
 
 ### 📖 **ドキュメント**
@@ -123,7 +129,9 @@ require (
     github.com/aws/aws-sdk-go-v2 v1.24.0
     github.com/pkg/sftp v1.13.6
     github.com/studio-b12/gowebdav v0.9.0
-    github.com/go-redis/redis/v8 v8.11.5
+    github.com/syndtr/goleveldb v1.0.0
+    github.com/testcontainers/testcontainers-go v0.26.0
+    github.com/ory/dockertest/v3 v3.10.0
     // その他の依存関係
 )
 ```

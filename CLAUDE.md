@@ -23,6 +23,9 @@ go test -v ./...
 # Run tests for specific package
 go test ./filesystem
 
+# Run integration tests with Docker containers
+go test -tags=integration ./tests/integration/...
+
 # Format code
 go fmt ./...
 
@@ -32,6 +35,21 @@ go vet ./...
 # Check module dependencies
 go mod tidy
 ```
+
+# Testing Strategy
+
+## Unit Tests
+Standard Go unit tests for individual components and interfaces.
+
+## Integration Tests with Docker
+Remote filesystem implementations are tested using Docker containers:
+
+- **SFTP**: Uses `atmoz/sftp` container for SSH/SFTP server simulation
+- **FTP**: Uses `stilliard/pure-ftpd` container for FTP server testing  
+- **WebDAV**: Uses `bytemark/webdav` container for WebDAV protocol testing
+- **S3**: Uses `minio/minio` container for S3-compatible API testing
+
+Integration tests are tagged with `//go:build integration` and run separately to avoid Docker dependency in regular unit tests.
 
 # Architecture
 
@@ -81,6 +99,8 @@ See `plan/filemap.md` for the planned directory structure. Implementation follow
 # Dependencies
 
 - **Pattern Matching**: Uses `open-match.dev/open-match` for minimatch-style file pattern filtering in `WalkOptions.Include` and `WalkOptions.Exclude`
+- **Status Storage**: Uses LevelDB (`github.com/syndtr/goleveldb`) for embedded key-value storage of processing status
+- **Docker Testing**: Uses `github.com/testcontainers/testcontainers-go` for Docker container management and `github.com/ory/dockertest/v3` as alternative testing helper
 
 # Error Handling
 
@@ -89,3 +109,12 @@ Uses `RetryableError` interface (`uobf.go:198-201`) to distinguish network error
 # Logging Integration
 
 All components implement `Logger` interface (`uobf.go:28-43`) compatible with popular Go logging libraries. Supports structured logging with contextual fields.
+
+# Graceful Shutdown
+
+The system supports graceful shutdown with special handling for upload operations:
+
+- **Upload Protection**: File uploads cannot be interrupted mid-operation to prevent corruption
+- **Context Cancellation**: Most operations respect context cancellation except during upload phase
+- **Worker Pool Shutdown**: Workers complete current tasks before terminating
+- **Resource Cleanup**: Filesystem connections and temporary files are properly cleaned up
