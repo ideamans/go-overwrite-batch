@@ -78,6 +78,10 @@ See `plan/filemap.md` for the planned directory structure. Implementation follow
 - `backlog/` - Backlog file formats
 - `internal/` - Private utilities (worker pools, retry logic, progress tracking)
 
+# Dependencies
+
+- **Pattern Matching**: Uses `open-match.dev/open-match` for minimatch-style file pattern filtering in `WalkOptions.Include` and `WalkOptions.Exclude`
+
 # Error Handling
 
 Uses `RetryableError` interface (`uobf.go:198-201`) to distinguish network errors that should be retried. Individual file processing failures don't stop the overall workflow.

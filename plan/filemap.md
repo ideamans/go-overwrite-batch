@@ -45,7 +45,7 @@ unified-overwrite-batch-flow/
 │   │   └── retry.go
 │   ├── progress/              # 進捗管理
 │   │   └── tracker.go
-│   └── minimatch/             # minimatchパターンマッチング
+│   └── patterns/              # open-match.dev/open-matchを使用したパターンマッチング
 │       └── matcher.go
 │
 ├── examples/                   # 使用例

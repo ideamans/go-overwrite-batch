@@ -86,8 +86,8 @@ type FileSystem interface {
 
 ```go
 type WalkOptions struct {
-    Include        []string  // minimatchパターンでの包含
-    Exclude        []string  // minimatchパターンでの除外  
+    Include        []string  // open-match.dev/open-matchを使用したパターンでの包含
+    Exclude        []string  // open-match.dev/open-matchを使用したパターンでの除外  
     FollowSymlinks bool      // シンボリックリンク追跡
     MaxDepth       int       // 探索深度制限
     FilesOnly      bool      // ファイルのみ（ディレクトリ除外）
@@ -192,7 +192,7 @@ Compressed backlog file
 
 **詳細フロー**:
 
-1. **FileSystem.Walk()**: minimatchパターンでファイルをフィルタリング
+1. **FileSystem.Walk()**: open-match.dev/open-matchパターンでファイルをフィルタリング
 2. **Channel Pipeline**: バッチサイズでFileInfoをチャネル送信
 3. **StatusMemory**: KVSと照合して処理要否を判定
 4. **BacklogManager**: 処理が必要なファイルをgzip圧縮で保存

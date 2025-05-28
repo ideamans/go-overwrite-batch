@@ -48,10 +48,10 @@ type Logger interface {
 
 // WalkOptions provides options for directory traversal
 type WalkOptions struct {
-	// Include patterns (minimatch format) - if specified, only matching files are included
+	// Include patterns (open-match.dev/open-match format) - if specified, only matching files are included
 	Include []string
 
-	// Exclude patterns (minimatch format) - matching files are excluded
+	// Exclude patterns (open-match.dev/open-match format) - matching files are excluded
 	Exclude []string
 
 	// FollowSymlinks determines if symbolic links should be followed
