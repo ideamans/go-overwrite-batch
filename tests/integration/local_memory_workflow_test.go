@@ -4,6 +4,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,6 +39,9 @@ func uppercaseProcessFunc(ctx context.Context, localPath string) (string, error)
 }
 
 func TestLocalMemoryWorkflowIntegration(t *testing.T) {
+	// Configurable number of generated files for testing with larger datasets
+	const numGeneratedFiles = 1000
+	
 	// Create temporary directory for test
 	tempDir, err := os.MkdirTemp("", "uobf_working_test_")
 	if err != nil {
@@ -54,6 +58,7 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 		"dir2/file5.txt":      "last file in directory two",
 	}
 
+	// Create the original test files
 	for filePath, content := range testFiles {
 		fullPath := filepath.Join(tempDir, filePath)
 		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
@@ -63,9 +68,32 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 			t.Fatalf("Failed to write file %s: %v", filePath, err)
 		}
 	}
+	
+	// Create generated directory and many test files
+	generatedDir := filepath.Join(tempDir, "generated")
+	if err := os.MkdirAll(generatedDir, 0755); err != nil {
+		t.Fatalf("Failed to create generated directory: %v", err)
+	}
+	
+	t.Logf("Creating %d generated test files...", numGeneratedFiles)
+	for i := 1; i <= numGeneratedFiles; i++ {
+		fileName := fmt.Sprintf("%d.txt", i)
+		filePath := filepath.Join(generatedDir, fileName)
+		content := fmt.Sprintf("test%d", i)
+		
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write generated file %s: %v", fileName, err)
+		}
+		
+		// Add to testFiles map for later tracking
+		relPath := fmt.Sprintf("generated/%s", fileName)
+		testFiles[relPath] = content
+	}
+	t.Logf("Created %d generated test files successfully", numGeneratedFiles)
 
-	// Step 2: First scan run
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Step 2: First scan run  
+	// Increase timeout for larger file count
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	
 	// Create components
@@ -246,12 +274,16 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	t.Logf("Second backlog processed %d files (only changed files)", backlog2Count)
 	
 	// Verify the core functionality: incremental processing
-	if backlog2Count == 3 && backlog1Count == 5 {
+	expectedFirstRunCount := int64(5 + numGeneratedFiles) // 5 original + generated files
+	expectedSecondRunCount := int64(3)                    // 1 modified + 2 new files
+	
+	if backlog2Count == expectedSecondRunCount && backlog1Count == expectedFirstRunCount {
 		t.Logf("✅ Incremental processing works correctly:")
 		t.Logf("   - First run: processed all %d files", backlog1Count)
 		t.Logf("   - Second run: processed only %d changed files", backlog2Count)
 		t.Logf("   - Changed files: %v", backlog2Entries)
 	} else {
-		t.Errorf("❌ Incremental processing failed")
+		t.Errorf("❌ Incremental processing failed: expected first run=%d, second run=%d, but got first run=%d, second run=%d", 
+			expectedFirstRunCount, expectedSecondRunCount, backlog1Count, backlog2Count)
 	}
 }
