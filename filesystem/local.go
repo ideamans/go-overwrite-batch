@@ -134,36 +134,34 @@ func (l *LocalFileSystem) Walk(ctx context.Context, options uobf.WalkOptions, ch
 }
 
 // Download downloads a file from the filesystem to local path (essentially a copy operation)
-func (l *LocalFileSystem) Download(ctx context.Context, remotePath, localPath string) error {
-	l.logger.Debug("Starting file download", "remote_path", remotePath, "local_path", localPath)
+func (l *LocalFileSystem) Download(ctx context.Context, remoteRelPath, localFullPath string) error {
+	l.logger.Debug("Starting file download", "remote_rel_path", remoteRelPath, "local_full_path", localFullPath)
 
-	// Convert relative path to absolute path if needed
-	if !filepath.IsAbs(remotePath) {
-		remotePath = filepath.Join(l.rootPath, remotePath)
-	}
+	// Convert relative path to absolute path
+	remoteAbsPath := filepath.Join(l.rootPath, remoteRelPath)
 
 	// Clean paths
-	remotePath = filepath.Clean(remotePath)
-	localPath = filepath.Clean(localPath)
+	remoteAbsPath = filepath.Clean(remoteAbsPath)
+	localFullPath = filepath.Clean(localFullPath)
 
 	// Create destination directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
-		l.logger.Error("Failed to create destination directory", "dir", filepath.Dir(localPath), "error", err)
+	if err := os.MkdirAll(filepath.Dir(localFullPath), 0755); err != nil {
+		l.logger.Error("Failed to create destination directory", "dir", filepath.Dir(localFullPath), "error", err)
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
 	// Open source file
-	src, err := os.Open(remotePath)
+	src, err := os.Open(remoteAbsPath)
 	if err != nil {
-		l.logger.Error("Failed to open source file", "path", remotePath, "error", err)
+		l.logger.Error("Failed to open source file", "path", remoteAbsPath, "error", err)
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
 	defer src.Close()
 
 	// Create destination file
-	dst, err := os.Create(localPath)
+	dst, err := os.Create(localFullPath)
 	if err != nil {
-		l.logger.Error("Failed to create destination file", "path", localPath, "error", err)
+		l.logger.Error("Failed to create destination file", "path", localFullPath, "error", err)
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
 	defer dst.Close()
@@ -171,53 +169,51 @@ func (l *LocalFileSystem) Download(ctx context.Context, remotePath, localPath st
 	// Copy file content with context checking
 	_, err = l.copyWithContext(ctx, dst, src)
 	if err != nil {
-		l.logger.Error("Failed to copy file content", "remote_path", remotePath, "local_path", localPath, "error", err)
+		l.logger.Error("Failed to copy file content", "remote_abs_path", remoteAbsPath, "local_full_path", localFullPath, "error", err)
 		// Clean up partial file on error
-		os.Remove(localPath)
+		os.Remove(localFullPath)
 		return fmt.Errorf("failed to copy file content: %w", err)
 	}
 
-	l.logger.Info("File downloaded successfully", "remote_path", remotePath, "local_path", localPath)
+	l.logger.Info("File downloaded successfully", "remote_rel_path", remoteRelPath, "local_full_path", localFullPath)
 	return nil
 }
 
 // Upload uploads a local file to the filesystem and returns the uploaded file info (essentially a copy operation)
-func (l *LocalFileSystem) Upload(ctx context.Context, localPath, remotePath string) (*uobf.FileInfo, error) {
-	l.logger.Debug("Starting file upload", "local_path", localPath, "remote_path", remotePath)
+func (l *LocalFileSystem) Upload(ctx context.Context, localFullPath, remoteRelPath string) (*uobf.FileInfo, error) {
+	l.logger.Debug("Starting file upload", "local_full_path", localFullPath, "remote_rel_path", remoteRelPath)
 
-	// Convert relative path to absolute path if needed
-	if !filepath.IsAbs(remotePath) {
-		remotePath = filepath.Join(l.rootPath, remotePath)
-	}
+	// Convert relative path to absolute path
+	remoteAbsPath := filepath.Join(l.rootPath, remoteRelPath)
 
 	// Clean paths
-	localPath = filepath.Clean(localPath)
-	remotePath = filepath.Clean(remotePath)
+	localFullPath = filepath.Clean(localFullPath)
+	remoteAbsPath = filepath.Clean(remoteAbsPath)
 
 	// Create destination directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(remotePath), 0755); err != nil {
-		l.logger.Error("Failed to create destination directory", "dir", filepath.Dir(remotePath), "error", err)
+	if err := os.MkdirAll(filepath.Dir(remoteAbsPath), 0755); err != nil {
+		l.logger.Error("Failed to create destination directory", "dir", filepath.Dir(remoteAbsPath), "error", err)
 		return nil, fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
 	// Check if source file exists
-	if _, err := os.Stat(localPath); err != nil {
-		l.logger.Error("Failed to stat source file", "path", localPath, "error", err)
+	if _, err := os.Stat(localFullPath); err != nil {
+		l.logger.Error("Failed to stat source file", "path", localFullPath, "error", err)
 		return nil, fmt.Errorf("failed to stat source file: %w", err)
 	}
 
 	// Open source file
-	src, err := os.Open(localPath)
+	src, err := os.Open(localFullPath)
 	if err != nil {
-		l.logger.Error("Failed to open source file", "path", localPath, "error", err)
+		l.logger.Error("Failed to open source file", "path", localFullPath, "error", err)
 		return nil, fmt.Errorf("failed to open source file: %w", err)
 	}
 	defer src.Close()
 
 	// Create destination file
-	dst, err := os.Create(remotePath)
+	dst, err := os.Create(remoteAbsPath)
 	if err != nil {
-		l.logger.Error("Failed to create destination file", "path", remotePath, "error", err)
+		l.logger.Error("Failed to create destination file", "path", remoteAbsPath, "error", err)
 		return nil, fmt.Errorf("failed to create destination file: %w", err)
 	}
 	defer dst.Close()
@@ -225,24 +221,17 @@ func (l *LocalFileSystem) Upload(ctx context.Context, localPath, remotePath stri
 	// Copy file content with context checking
 	size, err := l.copyWithContext(ctx, dst, src)
 	if err != nil {
-		l.logger.Error("Failed to copy file content", "local_path", localPath, "remote_path", remotePath, "error", err)
+		l.logger.Error("Failed to copy file content", "local_full_path", localFullPath, "remote_abs_path", remoteAbsPath, "error", err)
 		// Clean up partial file on error
-		os.Remove(remotePath)
+		os.Remove(remoteAbsPath)
 		return nil, fmt.Errorf("failed to copy file content: %w", err)
 	}
 
 	// Get uploaded file info
-	uploadedInfo, err := os.Stat(remotePath)
+	uploadedInfo, err := os.Stat(remoteAbsPath)
 	if err != nil {
-		l.logger.Error("Failed to stat uploaded file", "path", remotePath, "error", err)
+		l.logger.Error("Failed to stat uploaded file", "path", remoteAbsPath, "error", err)
 		return nil, fmt.Errorf("failed to stat uploaded file: %w", err)
-	}
-
-	// Create relative path for uploaded file
-	relPath, err := filepath.Rel(l.rootPath, remotePath)
-	if err != nil {
-		l.logger.Warn("Failed to get relative path for uploaded file", "path", remotePath, "error", err)
-		relPath = remotePath // fallback to absolute path
 	}
 
 	fileInfo := &uobf.FileInfo{
@@ -251,11 +240,11 @@ func (l *LocalFileSystem) Upload(ctx context.Context, localPath, remotePath stri
 		Mode:    uint32(uploadedInfo.Mode()),
 		ModTime: uploadedInfo.ModTime(),
 		IsDir:   uploadedInfo.IsDir(),
-		RelPath: filepath.ToSlash(relPath),
-		AbsPath: remotePath,
+		RelPath: filepath.ToSlash(remoteRelPath),
+		AbsPath: remoteAbsPath,
 	}
 
-	l.logger.Info("File uploaded successfully", "local_path", localPath, "remote_path", remotePath, "size", size)
+	l.logger.Info("File uploaded successfully", "local_full_path", localFullPath, "remote_rel_path", remoteRelPath, "size", size)
 	return fileInfo, nil
 }
 

@@ -182,28 +182,28 @@ func TestLocalFileSystem_Download(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		remotePath string
-		localPath  string
-		wantErr    bool
+		name          string
+		remoteRelPath string
+		localFullPath string
+		wantErr       bool
 	}{
 		{
-			name:       "successful download",
-			remotePath: srcFile,
-			localPath:  filepath.Join(tempDir, "downloaded.txt"),
-			wantErr:    false,
+			name:          "successful download",
+			remoteRelPath: "source.txt",
+			localFullPath: filepath.Join(tempDir, "downloaded.txt"),
+			wantErr:       false,
 		},
 		{
-			name:       "download to subdirectory",
-			remotePath: srcFile,
-			localPath:  filepath.Join(tempDir, "subdir", "downloaded.txt"),
-			wantErr:    false,
+			name:          "download to subdirectory",
+			remoteRelPath: "source.txt",
+			localFullPath: filepath.Join(tempDir, "subdir", "downloaded.txt"),
+			wantErr:       false,
 		},
 		{
-			name:       "non-existent source file",
-			remotePath: filepath.Join(tempDir, "nonexistent.txt"),
-			localPath:  filepath.Join(tempDir, "downloaded.txt"),
-			wantErr:    true,
+			name:          "non-existent source file",
+			remoteRelPath: "nonexistent.txt",
+			localFullPath: filepath.Join(tempDir, "downloaded.txt"),
+			wantErr:       true,
 		},
 	}
 
@@ -212,7 +212,7 @@ func TestLocalFileSystem_Download(t *testing.T) {
 			fs := NewLocalFileSystem(tempDir)
 			fs.SetLogger(&mockLogger{})
 
-			err := fs.Download(context.Background(), tt.remotePath, tt.localPath)
+			err := fs.Download(context.Background(), tt.remoteRelPath, tt.localFullPath)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -220,7 +220,7 @@ func TestLocalFileSystem_Download(t *testing.T) {
 				assert.NoError(t, err)
 
 				// Verify file was copied correctly
-				downloadedContent, err := os.ReadFile(tt.localPath)
+				downloadedContent, err := os.ReadFile(tt.localFullPath)
 				assert.NoError(t, err)
 				assert.Equal(t, content, string(downloadedContent))
 			}
@@ -243,7 +243,7 @@ func TestLocalFileSystem_Download_ContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	localPath := filepath.Join(tempDir, "downloaded.txt")
-	err = fs.Download(ctx, srcFile, localPath)
+	err = fs.Download(ctx, "source.txt", localPath)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context canceled")
@@ -265,28 +265,28 @@ func TestLocalFileSystem_Upload(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		localPath  string
-		remotePath string
-		wantErr    bool
+		name          string
+		localFullPath string
+		remoteRelPath string
+		wantErr       bool
 	}{
 		{
-			name:       "successful upload",
-			localPath:  srcFile,
-			remotePath: filepath.Join(tempDir, "uploaded.txt"),
-			wantErr:    false,
+			name:          "successful upload",
+			localFullPath: srcFile,
+			remoteRelPath: "uploaded.txt",
+			wantErr:       false,
 		},
 		{
-			name:       "upload to subdirectory",
-			localPath:  srcFile,
-			remotePath: filepath.Join(tempDir, "subdir", "uploaded.txt"),
-			wantErr:    false,
+			name:          "upload to subdirectory",
+			localFullPath: srcFile,
+			remoteRelPath: "subdir/uploaded.txt",
+			wantErr:       false,
 		},
 		{
-			name:       "non-existent source file",
-			localPath:  filepath.Join(tempDir, "nonexistent.txt"),
-			remotePath: filepath.Join(tempDir, "uploaded.txt"),
-			wantErr:    true,
+			name:          "non-existent source file",
+			localFullPath: filepath.Join(tempDir, "nonexistent.txt"),
+			remoteRelPath: "uploaded.txt",
+			wantErr:       true,
 		},
 	}
 
@@ -295,7 +295,7 @@ func TestLocalFileSystem_Upload(t *testing.T) {
 			fs := NewLocalFileSystem(tempDir)
 			fs.SetLogger(&mockLogger{})
 
-			fileInfo, err := fs.Upload(context.Background(), tt.localPath, tt.remotePath)
+			fileInfo, err := fs.Upload(context.Background(), tt.localFullPath, tt.remoteRelPath)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -305,16 +305,15 @@ func TestLocalFileSystem_Upload(t *testing.T) {
 				assert.NotNil(t, fileInfo)
 
 				// Verify file info
-				assert.Equal(t, filepath.Base(tt.remotePath), fileInfo.Name)
+				assert.Equal(t, filepath.Base(tt.remoteRelPath), fileInfo.Name)
 				assert.Equal(t, int64(len(content)), fileInfo.Size)
-				assert.Equal(t, tt.remotePath, fileInfo.AbsPath)
+				expectedAbsPath := filepath.Join(tempDir, tt.remoteRelPath)
+				assert.Equal(t, expectedAbsPath, fileInfo.AbsPath)
 				assert.False(t, fileInfo.IsDir)
-				// RelPath should be relative to tempDir
-				expectedRelPath, _ := filepath.Rel(tempDir, tt.remotePath)
-				assert.Equal(t, filepath.ToSlash(expectedRelPath), fileInfo.RelPath)
+				assert.Equal(t, filepath.ToSlash(tt.remoteRelPath), fileInfo.RelPath)
 
 				// Verify file was copied correctly
-				uploadedContent, err := os.ReadFile(tt.remotePath)
+				uploadedContent, err := os.ReadFile(expectedAbsPath)
 				assert.NoError(t, err)
 				assert.Equal(t, content, string(uploadedContent))
 			}
@@ -336,15 +335,16 @@ func TestLocalFileSystem_Upload_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	remotePath := filepath.Join(tempDir, "uploaded.txt")
-	fileInfo, err := fs.Upload(ctx, srcFile, remotePath)
+	remoteRelPath := "uploaded.txt"
+	fileInfo, err := fs.Upload(ctx, srcFile, remoteRelPath)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context canceled")
 	assert.Nil(t, fileInfo)
 
 	// Verify partial file was cleaned up
-	_, err = os.Stat(remotePath)
+	remoteAbsPath := filepath.Join(tempDir, remoteRelPath)
+	_, err = os.Stat(remoteAbsPath)
 	assert.True(t, os.IsNotExist(err))
 }
 

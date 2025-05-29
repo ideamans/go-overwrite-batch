@@ -26,7 +26,6 @@ type FileInfo struct {
 	AbsPath string    `json:"abs_path"` // Absolute path
 }
 
-
 // =============================================================================
 // Filesystem Interface
 // =============================================================================
@@ -58,10 +57,14 @@ type FileSystem interface {
 	Walk(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error
 
 	// Download downloads a file from the filesystem to local path
-	Download(ctx context.Context, remotePath, localPath string) error
+	// remoteRelPath: relative path from filesystem root
+	// localFullPath: absolute path on local filesystem
+	Download(ctx context.Context, remoteRelPath, localFullPath string) error
 
 	// Upload uploads a local file to the filesystem and returns the uploaded file info
-	Upload(ctx context.Context, localPath, remotePath string) (*FileInfo, error)
+	// localFullPath: absolute path on local filesystem
+	// remoteRelPath: relative path from filesystem root
+	Upload(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error)
 
 	// SetLogger sets the logger for the filesystem implementation
 	SetLogger(logger common.Logger)
@@ -162,4 +165,3 @@ type ProcessingOptions struct {
 
 // OverwriteWorkflow manages the complete overwrite batch workflow
 // Implementation is in workflow.go
-

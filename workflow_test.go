@@ -14,8 +14,8 @@ import (
 // MockFileSystem provides a mock implementation of FileSystem
 type MockFileSystem struct {
 	WalkFunc     func(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error
-	DownloadFunc func(ctx context.Context, remotePath, localPath string) error
-	UploadFunc   func(ctx context.Context, localPath, remotePath string) (*FileInfo, error)
+	DownloadFunc func(ctx context.Context, remoteRelPath, localFullPath string) error
+	UploadFunc   func(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error)
 	CloseFunc    func() error
 	SetLoggerFunc func(logger common.Logger)
 }
@@ -28,21 +28,21 @@ func (m *MockFileSystem) Walk(ctx context.Context, options WalkOptions, ch chan<
 	return nil
 }
 
-func (m *MockFileSystem) Download(ctx context.Context, remotePath, localPath string) error {
+func (m *MockFileSystem) Download(ctx context.Context, remoteRelPath, localFullPath string) error {
 	if m.DownloadFunc != nil {
-		return m.DownloadFunc(ctx, remotePath, localPath)
+		return m.DownloadFunc(ctx, remoteRelPath, localFullPath)
 	}
 	return nil
 }
 
-func (m *MockFileSystem) Upload(ctx context.Context, localPath, remotePath string) (*FileInfo, error) {
+func (m *MockFileSystem) Upload(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error) {
 	if m.UploadFunc != nil {
-		return m.UploadFunc(ctx, localPath, remotePath)
+		return m.UploadFunc(ctx, localFullPath, remoteRelPath)
 	}
 	return &FileInfo{
 		Name:    "test.txt",
-		RelPath: remotePath, 
-		AbsPath: "/abs" + remotePath, 
+		RelPath: remoteRelPath, 
+		AbsPath: "/abs" + remoteRelPath, 
 		Size:    1024, 
 		ModTime: time.Now(),
 	}, nil
@@ -407,15 +407,15 @@ func TestOverwriteWorkflow_ProcessFiles_Success(t *testing.T) {
 	}
 	
 	// Mock FileSystem operations
-	fs.DownloadFunc = func(ctx context.Context, remotePath, localPath string) error {
+	fs.DownloadFunc = func(ctx context.Context, remoteRelPath, localFullPath string) error {
 		return nil // Success
 	}
 	
-	fs.UploadFunc = func(ctx context.Context, localPath, remotePath string) (*FileInfo, error) {
+	fs.UploadFunc = func(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error) {
 		return &FileInfo{
 			Name:    "test.txt",
-			RelPath: remotePath,
-			AbsPath: "/abs/" + remotePath,
+			RelPath: remoteRelPath,
+			AbsPath: "/abs/" + remoteRelPath,
 			Size:    1024,
 			ModTime: time.Now(),
 		}, nil
@@ -485,7 +485,7 @@ func TestOverwriteWorkflow_ProcessFiles_DownloadError(t *testing.T) {
 	}
 	
 	// Mock FileSystem to fail download
-	fs.DownloadFunc = func(ctx context.Context, remotePath, localPath string) error {
+	fs.DownloadFunc = func(ctx context.Context, remoteRelPath, localFullPath string) error {
 		return testError
 	}
 	
