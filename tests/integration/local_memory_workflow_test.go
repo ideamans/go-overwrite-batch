@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ideamans/go-unified-overwrite-batch-flow"
+	uobf "github.com/ideamans/go-unified-overwrite-batch-flow"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/backlog"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/filesystem"
@@ -29,19 +29,19 @@ func uppercaseProcessFunc(ctx context.Context, localPath string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	
+
 	upperContent := strings.ToUpper(string(content))
 	if err := os.WriteFile(localPath, []byte(upperContent), 0644); err != nil {
 		return "", err
 	}
-	
+
 	return localPath, nil
 }
 
 func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	// Configurable number of generated files for testing with larger datasets
 	const numGeneratedFiles = 1000
-	
+
 	// Create temporary directory for test
 	tempDir, err := os.MkdirTemp("", "uobf_working_test_")
 	if err != nil {
@@ -51,11 +51,11 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 
 	// Step 1: Create test files with lowercase content
 	testFiles := map[string]string{
-		"file1.txt":           "hello world this is file one",
-		"dir1/file2.txt":      "this is file two in directory one", 
+		"file1.txt":             "hello world this is file one",
+		"dir1/file2.txt":        "this is file two in directory one",
 		"dir1/subdir/file3.txt": "file three in subdirectory",
-		"dir2/file4.txt":      "another file in directory two",
-		"dir2/file5.txt":      "last file in directory two",
+		"dir2/file4.txt":        "another file in directory two",
+		"dir2/file5.txt":        "last file in directory two",
 	}
 
 	// Create the original test files
@@ -68,48 +68,48 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 			t.Fatalf("Failed to write file %s: %v", filePath, err)
 		}
 	}
-	
+
 	// Create generated directory and many test files
 	generatedDir := filepath.Join(tempDir, "generated")
 	if err := os.MkdirAll(generatedDir, 0755); err != nil {
 		t.Fatalf("Failed to create generated directory: %v", err)
 	}
-	
+
 	t.Logf("Creating %d generated test files...", numGeneratedFiles)
 	for i := 1; i <= numGeneratedFiles; i++ {
 		fileName := fmt.Sprintf("%d.txt", i)
 		filePath := filepath.Join(generatedDir, fileName)
 		content := fmt.Sprintf("test%d", i)
-		
+
 		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 			t.Fatalf("Failed to write generated file %s: %v", fileName, err)
 		}
-		
+
 		// Add to testFiles map for later tracking
 		relPath := fmt.Sprintf("generated/%s", fileName)
 		testFiles[relPath] = content
 	}
 	t.Logf("Created %d generated test files successfully", numGeneratedFiles)
 
-	// Step 2: First scan run  
+	// Step 2: First scan run
 	// Increase timeout for larger file count
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	
+
 	// Create components
 	logger := &common.NoOpLogger{}
-	
+
 	localFS := filesystem.NewLocalFileSystem(tempDir)
 	localFS.SetLogger(logger)
-	
+
 	statusMemory := status.NewMemoryStatusMemory()
 	statusMemory.SetLogger(logger)
-	
+
 	// Use GzipBacklogManager for more realistic testing
 	backlog1Path := filepath.Join(tempDir, "backlog1.txt.gz")
 	gzipBacklog1 := backlog.NewGzipBacklogManager(backlog1Path)
 	gzipBacklog1.SetLogger(logger)
-	
+
 	workflow1 := uobf.NewOverwriteWorkflow(localFS, statusMemory, gzipBacklog1)
 	workflow1.SetLogger(logger)
 
@@ -139,13 +139,13 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 
 	// Step 3: Process files with concurrency 2 using ProcessFiles
 	processOptions1 := uobf.ProcessingOptions{
-		Concurrency:    2,
-		RetryCount:     3,
-		RetryDelay:     100 * time.Millisecond,
-		ProgressEach:   1,
-		ProcessFunc:    uppercaseProcessFunc,
+		Concurrency:  4,
+		RetryCount:   3,
+		RetryDelay:   100 * time.Millisecond,
+		ProgressEach: 1,
+		ProcessFunc:  uppercaseProcessFunc,
 	}
-	
+
 	if err := workflow1.ProcessFiles(ctx, processOptions1); err != nil {
 		t.Fatalf("First ProcessFiles failed: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	backlog2Path := filepath.Join(tempDir, "backlog2.txt.gz")
 	gzipBacklog2 := backlog.NewGzipBacklogManager(backlog2Path)
 	gzipBacklog2.SetLogger(logger)
-	
+
 	workflow2 := uobf.NewOverwriteWorkflow(localFS, statusMemory, gzipBacklog2)
 	workflow2.SetLogger(logger)
 
@@ -195,7 +195,7 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to count backlog2 entries: %v", err)
 	}
-	
+
 	expectedChangedFiles := []string{
 		modifiedFile,
 		"dir3/newfile1.txt",
@@ -203,7 +203,7 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	}
 
 	if int(backlog2Count) != len(expectedChangedFiles) {
-		t.Errorf("Expected %d entries in second backlog, got %d", 
+		t.Errorf("Expected %d entries in second backlog, got %d",
 			len(expectedChangedFiles), int(backlog2Count))
 	}
 
@@ -212,12 +212,12 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read backlog2: %v", err)
 	}
-	
+
 	backlog2Entries := make([]string, 0)
 	for entry := range backlog2Ch {
 		backlog2Entries = append(backlog2Entries, entry)
 	}
-	
+
 	backlog2Set := make(map[string]bool)
 	for _, entry := range backlog2Entries {
 		backlog2Set[entry] = true
@@ -231,13 +231,13 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 
 	// Step 7: Process changed files with concurrency 1 using ProcessFiles
 	processOptions2 := uobf.ProcessingOptions{
-		Concurrency:    1,
-		RetryCount:     3,
-		RetryDelay:     100 * time.Millisecond,
-		ProgressEach:   1,
-		ProcessFunc:    uppercaseProcessFunc,
+		Concurrency:  1,
+		RetryCount:   3,
+		RetryDelay:   100 * time.Millisecond,
+		ProgressEach: 1,
+		ProcessFunc:  uppercaseProcessFunc,
 	}
-	
+
 	if err := workflow2.ProcessFiles(ctx, processOptions2); err != nil {
 		t.Fatalf("Second ProcessFiles failed: %v", err)
 	}
@@ -261,10 +261,10 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to read final file %s: %v", filePath, err)
 		}
-		
+
 		expected := strings.ToUpper(originalContent)
 		if string(content) != expected {
-			t.Errorf("File %s content mismatch.\nExpected: %s\nGot: %s", 
+			t.Errorf("File %s content mismatch.\nExpected: %s\nGot: %s",
 				filePath, expected, string(content))
 		}
 	}
@@ -272,18 +272,18 @@ func TestLocalMemoryWorkflowIntegration(t *testing.T) {
 	t.Logf("Integration test completed successfully")
 	t.Logf("First backlog processed %d files", backlog1Count)
 	t.Logf("Second backlog processed %d files (only changed files)", backlog2Count)
-	
+
 	// Verify the core functionality: incremental processing
 	expectedFirstRunCount := int64(5 + numGeneratedFiles) // 5 original + generated files
 	expectedSecondRunCount := int64(3)                    // 1 modified + 2 new files
-	
+
 	if backlog2Count == expectedSecondRunCount && backlog1Count == expectedFirstRunCount {
 		t.Logf("✅ Incremental processing works correctly:")
 		t.Logf("   - First run: processed all %d files", backlog1Count)
 		t.Logf("   - Second run: processed only %d changed files", backlog2Count)
 		t.Logf("   - Changed files: %v", backlog2Entries)
 	} else {
-		t.Errorf("❌ Incremental processing failed: expected first run=%d, second run=%d, but got first run=%d, second run=%d", 
+		t.Errorf("❌ Incremental processing failed: expected first run=%d, second run=%d, but got first run=%d, second run=%d",
 			expectedFirstRunCount, expectedSecondRunCount, backlog1Count, backlog2Count)
 	}
 }
