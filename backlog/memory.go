@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
-	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
+	"github.com/ideamans/go-l10n"
 )
 
 func init() {

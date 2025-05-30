@@ -15,7 +15,7 @@ import (
 	"github.com/ideamans/go-unified-overwrite-batch-flow/backlog"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/filesystem"
-	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
+	"github.com/ideamans/go-l10n"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/status"
 )
 

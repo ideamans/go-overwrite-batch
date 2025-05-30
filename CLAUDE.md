@@ -157,7 +157,7 @@ The project includes a comprehensive localization infrastructure (`l10n/` packag
 ### In Log Messages
 
 ```go
-import "github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
+import "github.com/ideamans/go-l10n"
 
 // Use T() function for all log messages
 logger.Info(l10n.T("Starting file processing"), "count", fileCount)
@@ -193,7 +193,7 @@ func init() {
 
 **All new code must:**
 
-1. Import and use the `l10n` package for any user-facing text
+1. Import and use the `github.com/ideamans/go-l10n` package for any user-facing text
 2. Wrap log messages and error strings with `l10n.T()`
 3. Register appropriate translations for Japanese (ja) language in `init()` function
 4. Use English as the base phrase in `T()` calls

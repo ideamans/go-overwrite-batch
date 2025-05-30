@@ -10,7 +10,7 @@ import (
 
 	uobf "github.com/ideamans/go-unified-overwrite-batch-flow"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
-	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
+	"github.com/ideamans/go-l10n"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )

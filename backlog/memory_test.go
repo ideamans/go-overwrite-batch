@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
+	"github.com/ideamans/go-l10n"
 )
 
 func init() {
