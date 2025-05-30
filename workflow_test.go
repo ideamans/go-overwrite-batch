@@ -13,10 +13,10 @@ import (
 
 // MockFileSystem provides a mock implementation of FileSystem
 type MockFileSystem struct {
-	WalkFunc     func(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error
-	DownloadFunc func(ctx context.Context, remoteRelPath, localFullPath string) error
-	UploadFunc   func(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error)
-	CloseFunc    func() error
+	WalkFunc      func(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error
+	DownloadFunc  func(ctx context.Context, remoteRelPath, localFullPath string) error
+	UploadFunc    func(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error)
+	CloseFunc     func() error
 	SetLoggerFunc func(logger common.Logger)
 }
 
@@ -41,9 +41,9 @@ func (m *MockFileSystem) Upload(ctx context.Context, localFullPath, remoteRelPat
 	}
 	return &FileInfo{
 		Name:    "test.txt",
-		RelPath: remoteRelPath, 
-		AbsPath: "/abs" + remoteRelPath, 
-		Size:    1024, 
+		RelPath: remoteRelPath,
+		AbsPath: "/abs" + remoteRelPath,
+		Size:    1024,
 		ModTime: time.Now(),
 	}, nil
 }
@@ -73,7 +73,7 @@ func (m *MockStatusMemory) NeedsProcessing(ctx context.Context, entries <-chan F
 	if m.NeedsProcessingFunc != nil {
 		return m.NeedsProcessingFunc(ctx, entries)
 	}
-	
+
 	// Default: pass through all entries
 	filtered := make(chan FileInfo, 100)
 	go func() {
@@ -121,7 +121,7 @@ func (m *MockBacklogManager) StartWriting(ctx context.Context, relPaths <-chan s
 	if m.StartWritingFunc != nil {
 		return m.StartWritingFunc(ctx, relPaths)
 	}
-	
+
 	// Default: consume all entries
 	for range relPaths {
 		select {
@@ -137,7 +137,7 @@ func (m *MockBacklogManager) StartReading(ctx context.Context) (<-chan string, e
 	if m.StartReadingFunc != nil {
 		return m.StartReadingFunc(ctx)
 	}
-	
+
 	// Default: return empty channel
 	ch := make(chan string)
 	close(ch)
@@ -187,14 +187,14 @@ func createTestFileInfos(count int) []FileInfo {
 // Test data and helpers for specific scenarios
 
 var (
-	testError = errors.New("test error")
+	testError          = errors.New("test error")
 	retryableTestError = &common.NetworkError{
 		Operation:   "test operation",
 		Cause:       errors.New("network timeout"),
 		ShouldRetry: true,
 	}
 	nonRetryableTestError = &common.NetworkError{
-		Operation:   "test operation", 
+		Operation:   "test operation",
 		Cause:       errors.New("authentication failed"),
 		ShouldRetry: false,
 	}
@@ -233,7 +233,7 @@ func (pt *progressTracker) lastCall() progressCall {
 
 func TestOverwriteWorkflow_ScanAndFilter_Success(t *testing.T) {
 	workflow, fs, status, backlog := createTestWorkflow()
-	
+
 	// Mock FileSystem to return test files
 	testFiles := createTestFileInfos(3)
 	fs.WalkFunc = func(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error {
@@ -242,7 +242,7 @@ func TestOverwriteWorkflow_ScanAndFilter_Success(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	// Mock StatusMemory to pass through all files
 	status.NeedsProcessingFunc = func(ctx context.Context, entries <-chan FileInfo) (<-chan FileInfo, error) {
 		filtered := make(chan FileInfo, 10)
@@ -254,7 +254,7 @@ func TestOverwriteWorkflow_ScanAndFilter_Success(t *testing.T) {
 		}()
 		return filtered, nil
 	}
-	
+
 	// Track what gets written to backlog
 	var writtenPaths []string
 	backlog.StartWritingFunc = func(ctx context.Context, relPaths <-chan string) error {
@@ -263,25 +263,25 @@ func TestOverwriteWorkflow_ScanAndFilter_Success(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	// Execute
 	options := ScanAndFilterOptions{
 		WalkOptions: WalkOptions{
 			Include: []string{"*.txt"},
 		},
 	}
-	
+
 	err := workflow.ScanAndFilter(context.Background(), options)
-	
+
 	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	
+
 	if len(writtenPaths) != len(testFiles) {
 		t.Errorf("Expected %d paths written to backlog, got %d", len(testFiles), len(writtenPaths))
 	}
-	
+
 	for i, expectedFile := range testFiles {
 		if i < len(writtenPaths) && writtenPaths[i] != expectedFile.RelPath {
 			t.Errorf("Expected path %s at index %d, got %s", expectedFile.RelPath, i, writtenPaths[i])
@@ -291,21 +291,21 @@ func TestOverwriteWorkflow_ScanAndFilter_Success(t *testing.T) {
 
 func TestOverwriteWorkflow_ScanAndFilter_FileSystemError(t *testing.T) {
 	workflow, fs, _, _ := createTestWorkflow()
-	
+
 	// Mock FileSystem to return error
 	fs.WalkFunc = func(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error {
 		return testError
 	}
-	
+
 	// Execute
 	options := ScanAndFilterOptions{
 		WalkOptions: WalkOptions{
 			Include: []string{"*.txt"},
 		},
 	}
-	
+
 	err := workflow.ScanAndFilter(context.Background(), options)
-	
+
 	// Verify
 	if err != testError {
 		t.Errorf("Expected testError, got: %v", err)
@@ -314,7 +314,7 @@ func TestOverwriteWorkflow_ScanAndFilter_FileSystemError(t *testing.T) {
 
 func TestOverwriteWorkflow_ScanAndFilter_StatusMemoryError(t *testing.T) {
 	workflow, fs, status, _ := createTestWorkflow()
-	
+
 	// Mock FileSystem to return test files
 	testFiles := createTestFileInfos(2)
 	fs.WalkFunc = func(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error {
@@ -323,7 +323,7 @@ func TestOverwriteWorkflow_ScanAndFilter_StatusMemoryError(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	// Mock StatusMemory to return error
 	status.NeedsProcessingFunc = func(ctx context.Context, entries <-chan FileInfo) (<-chan FileInfo, error) {
 		// Consume entries to avoid blocking
@@ -333,11 +333,11 @@ func TestOverwriteWorkflow_ScanAndFilter_StatusMemoryError(t *testing.T) {
 		}()
 		return nil, testError
 	}
-	
+
 	// Execute
 	options := ScanAndFilterOptions{}
 	err := workflow.ScanAndFilter(context.Background(), options)
-	
+
 	// Verify
 	if err != testError {
 		t.Errorf("Expected testError, got: %v", err)
@@ -346,7 +346,7 @@ func TestOverwriteWorkflow_ScanAndFilter_StatusMemoryError(t *testing.T) {
 
 func TestOverwriteWorkflow_ScanAndFilter_BacklogManagerError(t *testing.T) {
 	workflow, fs, status, backlog := createTestWorkflow()
-	
+
 	// Mock FileSystem to return test files
 	testFiles := createTestFileInfos(2)
 	fs.WalkFunc = func(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error {
@@ -355,7 +355,7 @@ func TestOverwriteWorkflow_ScanAndFilter_BacklogManagerError(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	// Mock StatusMemory to pass through all files
 	status.NeedsProcessingFunc = func(ctx context.Context, entries <-chan FileInfo) (<-chan FileInfo, error) {
 		filtered := make(chan FileInfo, 10)
@@ -367,7 +367,7 @@ func TestOverwriteWorkflow_ScanAndFilter_BacklogManagerError(t *testing.T) {
 		}()
 		return filtered, nil
 	}
-	
+
 	// Mock BacklogManager to return error
 	backlog.StartWritingFunc = func(ctx context.Context, relPaths <-chan string) error {
 		// Consume to avoid blocking
@@ -375,11 +375,11 @@ func TestOverwriteWorkflow_ScanAndFilter_BacklogManagerError(t *testing.T) {
 		}
 		return testError
 	}
-	
+
 	// Execute
 	options := ScanAndFilterOptions{}
 	err := workflow.ScanAndFilter(context.Background(), options)
-	
+
 	// Verify
 	if err != testError {
 		t.Errorf("Expected testError, got: %v", err)
@@ -388,15 +388,15 @@ func TestOverwriteWorkflow_ScanAndFilter_BacklogManagerError(t *testing.T) {
 
 func TestOverwriteWorkflow_ProcessFiles_Success(t *testing.T) {
 	workflow, fs, status, backlog := createTestWorkflow()
-	
+
 	// Test data
 	testPaths := []string{"file1.txt", "file2.txt"}
-	
+
 	// Mock BacklogManager to return test paths
 	backlog.CountRelPathsFunc = func(ctx context.Context) (int64, error) {
 		return int64(len(testPaths)), nil
 	}
-	
+
 	backlog.StartReadingFunc = func(ctx context.Context) (<-chan string, error) {
 		ch := make(chan string, len(testPaths))
 		for _, path := range testPaths {
@@ -405,12 +405,12 @@ func TestOverwriteWorkflow_ProcessFiles_Success(t *testing.T) {
 		close(ch)
 		return ch, nil
 	}
-	
+
 	// Mock FileSystem operations
 	fs.DownloadFunc = func(ctx context.Context, remoteRelPath, localFullPath string) error {
 		return nil // Success
 	}
-	
+
 	fs.UploadFunc = func(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error) {
 		return &FileInfo{
 			Name:    "test.txt",
@@ -420,17 +420,17 @@ func TestOverwriteWorkflow_ProcessFiles_Success(t *testing.T) {
 			ModTime: time.Now(),
 		}, nil
 	}
-	
+
 	// Mock StatusMemory operations
 	var reportedFiles []FileInfo
 	status.ReportDoneFunc = func(ctx context.Context, fileInfo FileInfo) error {
 		reportedFiles = append(reportedFiles, fileInfo)
 		return nil
 	}
-	
+
 	// Progress tracking
 	tracker := &progressTracker{}
-	
+
 	// Execute
 	options := ProcessingOptions{
 		Concurrency:      2,
@@ -442,22 +442,22 @@ func TestOverwriteWorkflow_ProcessFiles_Success(t *testing.T) {
 			return localPath, nil // Simple pass-through
 		},
 	}
-	
+
 	err := workflow.ProcessFiles(context.Background(), options)
-	
+
 	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	
+
 	if len(reportedFiles) != len(testPaths) {
 		t.Errorf("Expected %d files reported as done, got %d", len(testPaths), len(reportedFiles))
 	}
-	
+
 	if tracker.callCount() == 0 {
 		t.Error("Expected progress callbacks to be called")
 	}
-	
+
 	lastCall := tracker.lastCall()
 	if lastCall.processed != int64(len(testPaths)) {
 		t.Errorf("Expected final progress to show %d processed, got %d", len(testPaths), lastCall.processed)
@@ -466,15 +466,15 @@ func TestOverwriteWorkflow_ProcessFiles_Success(t *testing.T) {
 
 func TestOverwriteWorkflow_ProcessFiles_DownloadError(t *testing.T) {
 	workflow, fs, status, backlog := createTestWorkflow()
-	
+
 	// Test data
 	testPaths := []string{"file1.txt"}
-	
+
 	// Mock BacklogManager
 	backlog.CountRelPathsFunc = func(ctx context.Context) (int64, error) {
 		return int64(len(testPaths)), nil
 	}
-	
+
 	backlog.StartReadingFunc = func(ctx context.Context) (<-chan string, error) {
 		ch := make(chan string, len(testPaths))
 		for _, path := range testPaths {
@@ -483,19 +483,19 @@ func TestOverwriteWorkflow_ProcessFiles_DownloadError(t *testing.T) {
 		close(ch)
 		return ch, nil
 	}
-	
+
 	// Mock FileSystem to fail download
 	fs.DownloadFunc = func(ctx context.Context, remoteRelPath, localFullPath string) error {
 		return testError
 	}
-	
+
 	// Mock StatusMemory operations
 	var errorReports []FileInfo
 	status.ReportErrorFunc = func(ctx context.Context, fileInfo FileInfo, err error) error {
 		errorReports = append(errorReports, fileInfo)
 		return nil
 	}
-	
+
 	// Execute
 	options := ProcessingOptions{
 		Concurrency: 1,
@@ -504,14 +504,14 @@ func TestOverwriteWorkflow_ProcessFiles_DownloadError(t *testing.T) {
 			return localPath, nil
 		},
 	}
-	
+
 	err := workflow.ProcessFiles(context.Background(), options)
-	
+
 	// Verify - workflow should complete despite file errors
 	if err != nil {
 		t.Fatalf("Expected no error from workflow, got: %v", err)
 	}
-	
+
 	if len(errorReports) != len(testPaths) {
 		t.Errorf("Expected %d error reports, got %d", len(testPaths), len(errorReports))
 	}
@@ -519,12 +519,12 @@ func TestOverwriteWorkflow_ProcessFiles_DownloadError(t *testing.T) {
 
 func TestOverwriteWorkflow_ProcessFiles_BacklogManagerError(t *testing.T) {
 	workflow, _, _, backlog := createTestWorkflow()
-	
+
 	// Mock BacklogManager to fail counting
 	backlog.CountRelPathsFunc = func(ctx context.Context) (int64, error) {
 		return 0, testError
 	}
-	
+
 	// Execute
 	options := ProcessingOptions{
 		Concurrency: 1,
@@ -532,9 +532,9 @@ func TestOverwriteWorkflow_ProcessFiles_BacklogManagerError(t *testing.T) {
 			return localPath, nil
 		},
 	}
-	
+
 	err := workflow.ProcessFiles(context.Background(), options)
-	
+
 	// Verify
 	if err != testError {
 		t.Errorf("Expected testError, got: %v", err)
@@ -543,37 +543,37 @@ func TestOverwriteWorkflow_ProcessFiles_BacklogManagerError(t *testing.T) {
 
 func TestOverwriteWorkflow_SetLogger(t *testing.T) {
 	workflow, fs, status, backlog := createTestWorkflow()
-	
+
 	// Create test logger
 	testLogger := &common.NoOpLogger{}
-	
+
 	// Mock SetLogger calls to verify they're called
 	var fsLoggerSet, statusLoggerSet, backlogLoggerSet bool
-	
+
 	fs.SetLoggerFunc = func(logger common.Logger) {
 		fsLoggerSet = true
 	}
-	
+
 	status.SetLoggerFunc = func(logger common.Logger) {
 		statusLoggerSet = true
 	}
-	
+
 	backlog.SetLoggerFunc = func(logger common.Logger) {
 		backlogLoggerSet = true
 	}
-	
+
 	// Execute
 	workflow.SetLogger(testLogger)
-	
+
 	// Verify
 	if !fsLoggerSet {
 		t.Error("Expected FileSystem.SetLogger to be called")
 	}
-	
+
 	if !statusLoggerSet {
 		t.Error("Expected StatusMemory.SetLogger to be called")
 	}
-	
+
 	if !backlogLoggerSet {
 		t.Error("Expected BacklogManager.SetLogger to be called")
 	}

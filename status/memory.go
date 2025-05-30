@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	uobf "github.com/ideamans/go-unified-overwrite-batch-flow"
+	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
 

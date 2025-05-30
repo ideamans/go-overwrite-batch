@@ -16,9 +16,9 @@ type WorldMap map[string]LexiconMap
 var (
 	// 現在アクティブな言語
 	Language = "en"
-	
+
 	// テスト中の言語固定フラグ
-	forcedLanguage string
+	forcedLanguage   string
 	isLanguageForced bool
 )
 
@@ -28,7 +28,7 @@ func DetectLanguage() {
 		Language = forcedLanguage
 		return
 	}
-	
+
 	// テスト実行中かチェック（テスト中は英語に固定）
 	if isTestMode() {
 		Language = "en"
@@ -103,9 +103,9 @@ func isTestMode() bool {
 	// Goのテスト実行中は、実行可能ファイル名に.testが含まれる
 	// または、引数にtest関連のフラグが含まれる
 	for _, arg := range os.Args {
-		if strings.Contains(arg, ".test") || 
-		   strings.Contains(arg, "-test.") ||
-		   strings.HasSuffix(arg, "_test") {
+		if strings.Contains(arg, ".test") ||
+			strings.Contains(arg, "-test.") ||
+			strings.HasSuffix(arg, "_test") {
 			return true
 		}
 	}

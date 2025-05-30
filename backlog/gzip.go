@@ -13,7 +13,6 @@ import (
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
 
-
 func init() {
 	// Register Japanese translations for backlog operations
 	l10n.Register("ja", l10n.LexiconMap{
@@ -39,7 +38,6 @@ func init() {
 		"Backlog counting progress":                   "バックログ集計進行状況",
 	})
 }
-
 
 // GzipBacklogManager implements BacklogManager with gzip compression
 type GzipBacklogManager struct {

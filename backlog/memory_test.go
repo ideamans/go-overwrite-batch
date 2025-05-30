@@ -9,8 +9,6 @@ import (
 	"github.com/ideamans/go-unified-overwrite-batch-flow/l10n"
 )
 
-
-
 func init() {
 	// Force English for consistent test results
 	l10n.ForceLanguage("en")
@@ -18,7 +16,7 @@ func init() {
 
 func TestMemoryBacklogManager_WriteAndRead(t *testing.T) {
 	manager := NewMemoryBacklogManager()
-	
+
 	logger := &testLogger{}
 	manager.SetLogger(logger)
 
@@ -33,7 +31,7 @@ func TestMemoryBacklogManager_WriteAndRead(t *testing.T) {
 	// Test writing
 	ctx := context.Background()
 	relPathChan := make(chan string, len(testRelPaths))
-	
+
 	for _, relPath := range testRelPaths {
 		relPathChan <- relPath
 	}
@@ -79,9 +77,9 @@ func TestMemoryBacklogManager_WriteAndRead(t *testing.T) {
 			break
 		}
 		read := readRelPaths[i]
-		
+
 		if read != original {
-			t.Errorf("RelPath mismatch at index %d: expected %s, got %s", 
+			t.Errorf("RelPath mismatch at index %d: expected %s, got %s",
 				i, original, read)
 		}
 	}
@@ -134,7 +132,7 @@ func TestMemoryBacklogManager_ConcurrentWriteAndRead(t *testing.T) {
 
 	testRelPaths := []string{
 		"concurrent1.txt",
-		"concurrent2.txt", 
+		"concurrent2.txt",
 		"concurrent3.txt",
 	}
 
@@ -190,13 +188,13 @@ func TestMemoryBacklogManager_ConcurrentWriteAndRead(t *testing.T) {
 
 	// Verify both reads got the same data
 	if len(results[0]) != len(results[1]) {
-		t.Errorf("Concurrent reads returned different lengths: %d vs %d", 
+		t.Errorf("Concurrent reads returned different lengths: %d vs %d",
 			len(results[0]), len(results[1]))
 	}
 
 	for i := 0; i < len(results[0]) && i < len(results[1]); i++ {
 		if results[0][i] != results[1][i] {
-			t.Errorf("Concurrent reads differed at index %d: %s vs %s", 
+			t.Errorf("Concurrent reads differed at index %d: %s vs %s",
 				i, results[0][i], results[1][i])
 		}
 	}
@@ -209,10 +207,10 @@ func TestMemoryBacklogManager_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	relPathChan := make(chan string, 1)
 	relPathChan <- "test.txt"
-	
+
 	// Cancel context immediately
 	cancel()
-	
+
 	err := manager.StartWriting(ctx, relPathChan)
 	if err != context.Canceled {
 		t.Errorf("Expected context.Canceled error, got: %v", err)
@@ -220,7 +218,7 @@ func TestMemoryBacklogManager_ContextCancellation(t *testing.T) {
 
 	// Test read cancellation
 	manager.SetEntries([]string{"file1.txt", "file2.txt"})
-	
+
 	cancelCtx, cancel2 := context.WithCancel(context.Background())
 	readChan, err := manager.StartReading(cancelCtx)
 	if err != nil {
@@ -334,7 +332,7 @@ func TestMemoryBacklogManager_HelperMethods(t *testing.T) {
 
 	for i, expected := range testEntries {
 		if i < len(retrievedEntries) && retrievedEntries[i] != expected {
-			t.Errorf("Entry mismatch at index %d: expected %s, got %s", 
+			t.Errorf("Entry mismatch at index %d: expected %s, got %s",
 				i, expected, retrievedEntries[i])
 		}
 	}
@@ -359,7 +357,7 @@ func TestMemoryBacklogManager_OverwriteBehavior(t *testing.T) {
 	// First write
 	ctx := context.Background()
 	firstPaths := []string{"first1.txt", "first2.txt"}
-	
+
 	relPathChan := make(chan string, len(firstPaths))
 	for _, path := range firstPaths {
 		relPathChan <- path
@@ -377,7 +375,7 @@ func TestMemoryBacklogManager_OverwriteBehavior(t *testing.T) {
 
 	// Second write (should overwrite)
 	secondPaths := []string{"second1.txt", "second2.txt", "second3.txt"}
-	
+
 	relPathChan2 := make(chan string, len(secondPaths))
 	for _, path := range secondPaths {
 		relPathChan2 <- path
@@ -397,7 +395,7 @@ func TestMemoryBacklogManager_OverwriteBehavior(t *testing.T) {
 	entries := manager.GetEntries()
 	for i, expected := range secondPaths {
 		if i < len(entries) && entries[i] != expected {
-			t.Errorf("Entry mismatch at index %d: expected %s, got %s", 
+			t.Errorf("Entry mismatch at index %d: expected %s, got %s",
 				i, expected, entries[i])
 		}
 	}

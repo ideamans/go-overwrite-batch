@@ -224,7 +224,7 @@ func TestRetryExecutor_ContextCancellation(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Cancel context after first failure and during delay
 	go func() {
 		time.Sleep(25 * time.Millisecond) // Wait for first call and part of delay
@@ -434,11 +434,11 @@ func TestRetryExecutor_DelayTimingAccuracy(t *testing.T) {
 	// Check timing: should have 2 delays of 100ms each
 	expectedMinDuration := 2 * 100 * time.Millisecond
 	expectedMaxDuration := 250 * time.Millisecond // Allow some tolerance
-	
+
 	if duration < expectedMinDuration {
 		t.Errorf("Duration too short: expected at least %v, got %v", expectedMinDuration, duration)
 	}
-	
+
 	if duration > expectedMaxDuration {
 		t.Errorf("Duration too long: expected at most %v, got %v", expectedMaxDuration, duration)
 	}

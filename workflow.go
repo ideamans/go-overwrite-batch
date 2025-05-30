@@ -15,30 +15,30 @@ import (
 func init() {
 	// Register Japanese translations for workflow operations
 	l10n.Register("ja", l10n.LexiconMap{
-		"Starting scan and filter phase":            "スキャンとフィルタフェーズを開始します",
-		"Starting filesystem walk":                  "ファイルシステムウォークを開始します",
-		"Error during filesystem walk":              "ファイルシステムウォーク中にエラーが発生しました",
-		"Starting status memory filtering":          "ステータスメモリフィルタリングを開始します",
-		"Error during status memory filtering":      "ステータスメモリフィルタリング中にエラーが発生しました",
-		"Writing backlog file":                      "バックログファイルを書き込み中です",
-		"Error writing backlog file":                "バックログファイルの書き込み中にエラーが発生しました",
-		"Filesystem walk error detected":            "ファイルシステムウォークエラーが検出されました",
-		"Scan and filter phase completed":           "スキャンとフィルタフェーズが完了しました",
-		"Starting file processing phase":            "ファイル処理フェーズを開始します",
-		"Error counting backlog entries":            "バックログエントリの集計中にエラーが発生しました",
-		"Backlog file loaded":                       "バックログファイルが読み込まれました",
-		"Error reading backlog file":                "バックログファイルの読み取り中にエラーが発生しました",
-		"Starting concurrent file processing":       "並行ファイル処理を開始します",
-		"Failed to process file":                    "ファイルの処理に失敗しました",
-		"File processing completed":                 "ファイル処理が完了しました",
-		"Starting file processing":                  "ファイル処理を開始します",
-		"Download failed":                           "ダウンロードに失敗しました",
-		"File downloaded":                           "ファイルがダウンロードされました",
-		"Processing failed":                         "処理に失敗しました",
-		"File processed":                            "ファイルが処理されました",
-		"Upload failed":                             "アップロードに失敗しました",
-		"File uploaded successfully":                "ファイルが正常にアップロードされました",
-		"Failed to report completion":               "完了報告に失敗しました",
+		"Starting scan and filter phase":       "スキャンとフィルタフェーズを開始します",
+		"Starting filesystem walk":             "ファイルシステムウォークを開始します",
+		"Error during filesystem walk":         "ファイルシステムウォーク中にエラーが発生しました",
+		"Starting status memory filtering":     "ステータスメモリフィルタリングを開始します",
+		"Error during status memory filtering": "ステータスメモリフィルタリング中にエラーが発生しました",
+		"Writing backlog file":                 "バックログファイルを書き込み中です",
+		"Error writing backlog file":           "バックログファイルの書き込み中にエラーが発生しました",
+		"Filesystem walk error detected":       "ファイルシステムウォークエラーが検出されました",
+		"Scan and filter phase completed":      "スキャンとフィルタフェーズが完了しました",
+		"Starting file processing phase":       "ファイル処理フェーズを開始します",
+		"Error counting backlog entries":       "バックログエントリの集計中にエラーが発生しました",
+		"Backlog file loaded":                  "バックログファイルが読み込まれました",
+		"Error reading backlog file":           "バックログファイルの読み取り中にエラーが発生しました",
+		"Starting concurrent file processing":  "並行ファイル処理を開始します",
+		"Failed to process file":               "ファイルの処理に失敗しました",
+		"File processing completed":            "ファイル処理が完了しました",
+		"Starting file processing":             "ファイル処理を開始します",
+		"Download failed":                      "ダウンロードに失敗しました",
+		"File downloaded":                      "ファイルがダウンロードされました",
+		"Processing failed":                    "処理に失敗しました",
+		"File processed":                       "ファイルが処理されました",
+		"Upload failed":                        "アップロードに失敗しました",
+		"File uploaded successfully":           "ファイルが正常にアップロードされました",
+		"Failed to report completion":          "完了報告に失敗しました",
 	})
 }
 
@@ -79,7 +79,7 @@ func (w *OverwriteWorkflow) ScanAndFilter(ctx context.Context, options ScanAndFi
 	w.logger.Debug(l10n.T("Starting filesystem walk"))
 	walkCh := make(chan FileInfo, options.BatchSize*2)
 	walkErr := make(chan error, 1)
-	
+
 	go func() {
 		defer close(walkCh)
 		defer close(walkErr)
@@ -100,7 +100,7 @@ func (w *OverwriteWorkflow) ScanAndFilter(ctx context.Context, options ScanAndFi
 	// Step 3: Extract relative paths and write to compressed backlog file
 	w.logger.Debug(l10n.T("Writing backlog file"))
 	relPathCh := make(chan string, 100)
-	
+
 	// Start goroutine to convert FileInfo to relative paths
 	go func() {
 		defer close(relPathCh)
@@ -112,7 +112,7 @@ func (w *OverwriteWorkflow) ScanAndFilter(ctx context.Context, options ScanAndFi
 			}
 		}
 	}()
-	
+
 	if err := w.backlogManager.StartWriting(ctx, relPathCh); err != nil {
 		w.logger.Error(l10n.T("Error writing backlog file"), "error", err)
 		return err
@@ -166,18 +166,18 @@ func (w *OverwriteWorkflow) processWithConcurrency(ctx context.Context, relPaths
 	workerChan := make(chan string, options.Concurrency*2) // Buffer for workers
 	errChan := make(chan error, options.Concurrency)
 	doneChan := make(chan struct{})
-	
+
 	var processed int64
 	retryExecutor := &common.RetryExecutor{
 		MaxRetries: options.RetryCount,
 		Delay:      options.RetryDelay,
 	}
-	
+
 	// Start workers
 	for i := 0; i < options.Concurrency; i++ {
 		go func(workerID int) {
 			defer func() { doneChan <- struct{}{} }()
-			
+
 			for relPath := range workerChan {
 				if err := w.processFile(ctx, relPath, retryExecutor, options.ProcessFunc); err != nil {
 					w.logger.Error(l10n.T("Failed to process file"), "rel_path", relPath, "worker", workerID, "error", err)
@@ -192,7 +192,7 @@ func (w *OverwriteWorkflow) processWithConcurrency(ctx context.Context, relPaths
 			}
 		}(i)
 	}
-	
+
 	// Feed work to workers
 	go func() {
 		defer close(workerChan)
@@ -204,17 +204,17 @@ func (w *OverwriteWorkflow) processWithConcurrency(ctx context.Context, relPaths
 			}
 		}
 	}()
-	
+
 	// Wait for all workers to complete
 	for i := 0; i < options.Concurrency; i++ {
 		<-doneChan
 	}
-	
+
 	// Final progress report
 	if options.ProgressCallback != nil {
 		options.ProgressCallback(processed, total)
 	}
-	
+
 	w.logger.Info(l10n.T("File processing completed"), "total_processed", processed, "total_expected", total)
 	return nil
 }
@@ -222,7 +222,7 @@ func (w *OverwriteWorkflow) processWithConcurrency(ctx context.Context, relPaths
 // processFile handles the processing of a single file
 func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, retryExecutor *common.RetryExecutor, processFunc ProcessFunc) error {
 	w.logger.Debug(l10n.T("Starting file processing"), "rel_path", relPath)
-	
+
 	// Create FileInfo for the relative path
 	fileInfo := FileInfo{
 		Name:    filepath.Base(relPath),
@@ -232,7 +232,7 @@ func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, ret
 		ModTime: time.Now(),
 		IsDir:   false,
 	}
-	
+
 	// Create temporary file for download
 	tempFile, err := ioutil.TempFile("", "uobf_*"+filepath.Ext(relPath))
 	if err != nil {
@@ -242,7 +242,7 @@ func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, ret
 	tempPath := tempFile.Name()
 	tempFile.Close()
 	defer os.Remove(tempPath)
-	
+
 	// Download with retry
 	downloadErr := retryExecutor.Execute(ctx, func() error {
 		return w.fs.Download(ctx, relPath, tempPath)
@@ -252,9 +252,9 @@ func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, ret
 		w.statusMemory.ReportError(ctx, fileInfo, downloadErr)
 		return downloadErr
 	}
-	
+
 	w.logger.Debug(l10n.T("File downloaded"), "rel_path", relPath, "temp_path", tempPath)
-	
+
 	// Process file
 	processedPath, processErr := processFunc(ctx, tempPath)
 	if processErr != nil {
@@ -262,9 +262,9 @@ func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, ret
 		w.statusMemory.ReportError(ctx, fileInfo, processErr)
 		return processErr
 	}
-	
+
 	w.logger.Debug(l10n.T("File processed"), "rel_path", relPath, "processed_path", processedPath)
-	
+
 	// Upload with retry (no cancellation during upload)
 	var uploadedFileInfo *FileInfo
 	uploadErr := retryExecutor.Execute(context.Background(), func() error {
@@ -277,13 +277,13 @@ func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, ret
 		w.statusMemory.ReportError(ctx, fileInfo, uploadErr)
 		return uploadErr
 	}
-	
+
 	w.logger.Info(l10n.T("File uploaded successfully"), "rel_path", relPath, "size", uploadedFileInfo.Size)
-	
+
 	// Report success
 	if err := w.statusMemory.ReportDone(ctx, *uploadedFileInfo); err != nil {
 		w.logger.Warn(l10n.T("Failed to report completion"), "rel_path", relPath, "error", err)
 	}
-	
+
 	return nil
 }

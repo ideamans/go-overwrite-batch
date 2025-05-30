@@ -135,7 +135,7 @@ func TestRetryExecutor_ContextCancellation(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Cancel context after first call
 	go func() {
 		time.Sleep(time.Millisecond * 50)
