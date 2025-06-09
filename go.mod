@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.23.9
 
 require (
-	github.com/ideamans/go-l10n v0.0.0-20250530111449-e86dd21643a4
+	github.com/ideamans/go-l10n v1.0.1
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.0
 )
