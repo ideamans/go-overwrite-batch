@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -515,6 +516,7 @@ func TestMemoryStatusMemory_LargeDataset(t *testing.T) {
 
 // Mock logger for testing
 type mockLogger struct {
+	mu        sync.Mutex
 	debugLogs []string
 	infoLogs  []string
 	warnLogs  []string
@@ -522,18 +524,26 @@ type mockLogger struct {
 }
 
 func (m *mockLogger) Debug(msg string, fields ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.debugLogs = append(m.debugLogs, msg)
 }
 
 func (m *mockLogger) Info(msg string, fields ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.infoLogs = append(m.infoLogs, msg)
 }
 
 func (m *mockLogger) Warn(msg string, fields ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.warnLogs = append(m.warnLogs, msg)
 }
 
 func (m *mockLogger) Error(msg string, fields ...interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.errorLogs = append(m.errorLogs, msg)
 }
 

@@ -3,6 +3,7 @@ package uobf
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -202,6 +203,7 @@ var (
 
 // Progress tracking helper for tests
 type progressTracker struct {
+	mu    sync.Mutex
 	calls []progressCall
 }
 
@@ -211,18 +213,26 @@ type progressCall struct {
 }
 
 func (pt *progressTracker) callback(processed, total int64) {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
 	pt.calls = append(pt.calls, progressCall{processed: processed, total: total})
 }
 
 func (pt *progressTracker) reset() {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
 	pt.calls = nil
 }
 
 func (pt *progressTracker) callCount() int {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
 	return len(pt.calls)
 }
 
 func (pt *progressTracker) lastCall() progressCall {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
 	if len(pt.calls) == 0 {
 		return progressCall{}
 	}
@@ -422,8 +432,11 @@ func TestOverwriteWorkflow_ProcessFiles_Success(t *testing.T) {
 	}
 
 	// Mock StatusMemory operations
+	var reportedFilesMu sync.Mutex
 	var reportedFiles []FileInfo
 	status.ReportDoneFunc = func(ctx context.Context, fileInfo FileInfo) error {
+		reportedFilesMu.Lock()
+		defer reportedFilesMu.Unlock()
 		reportedFiles = append(reportedFiles, fileInfo)
 		return nil
 	}
@@ -450,8 +463,12 @@ func TestOverwriteWorkflow_ProcessFiles_Success(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	if len(reportedFiles) != len(testPaths) {
-		t.Errorf("Expected %d files reported as done, got %d", len(testPaths), len(reportedFiles))
+	reportedFilesMu.Lock()
+	reportedFilesCount := len(reportedFiles)
+	reportedFilesMu.Unlock()
+
+	if reportedFilesCount != len(testPaths) {
+		t.Errorf("Expected %d files reported as done, got %d", len(testPaths), reportedFilesCount)
 	}
 
 	if tracker.callCount() == 0 {
