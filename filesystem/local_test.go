@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	uobf "github.com/ideamans/go-unified-overwrite-batch-flow"
-	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
+	uobf "github.com/ideamans/overwritebatch"
+	"github.com/ideamans/overwritebatch/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

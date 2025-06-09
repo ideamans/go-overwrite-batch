@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
+	"github.com/ideamans/overwritebatch/common"
 	"github.com/ideamans/go-l10n"
 )
 

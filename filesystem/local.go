@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	uobf "github.com/ideamans/go-unified-overwrite-batch-flow"
-	"github.com/ideamans/go-unified-overwrite-batch-flow/common"
+	uobf "github.com/ideamans/overwritebatch"
+	"github.com/ideamans/overwritebatch/common"
 )
 
 // LocalFileSystem implements FileSystem interface for local filesystem operations
