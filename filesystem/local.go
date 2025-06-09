@@ -156,7 +156,11 @@ func (l *LocalFileSystem) Download(ctx context.Context, remoteRelPath, localFull
 		l.logger.Error("Failed to open source file", "path", remoteAbsPath, "error", err)
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer src.Close()
+	defer func() {
+		if err := src.Close(); err != nil {
+			l.logger.Warn("Failed to close source file", "path", remoteAbsPath, "error", err)
+		}
+	}()
 
 	// Create destination file
 	dst, err := os.Create(localFullPath)
@@ -164,14 +168,20 @@ func (l *LocalFileSystem) Download(ctx context.Context, remoteRelPath, localFull
 		l.logger.Error("Failed to create destination file", "path", localFullPath, "error", err)
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dst.Close()
+	defer func() {
+		if err := dst.Close(); err != nil {
+			l.logger.Warn("Failed to close destination file", "path", localFullPath, "error", err)
+		}
+	}()
 
 	// Copy file content with context checking
 	_, err = l.copyWithContext(ctx, dst, src)
 	if err != nil {
 		l.logger.Error("Failed to copy file content", "remote_abs_path", remoteAbsPath, "local_full_path", localFullPath, "error", err)
 		// Clean up partial file on error
-		os.Remove(localFullPath)
+		if removeErr := os.Remove(localFullPath); removeErr != nil {
+			l.logger.Warn("Failed to remove file after copy error", "path", localFullPath, "error", removeErr)
+		}
 		return fmt.Errorf("failed to copy file content: %w", err)
 	}
 
@@ -208,7 +218,11 @@ func (l *LocalFileSystem) Upload(ctx context.Context, localFullPath, remoteRelPa
 		l.logger.Error("Failed to open source file", "path", localFullPath, "error", err)
 		return nil, fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer src.Close()
+	defer func() {
+		if err := src.Close(); err != nil {
+			l.logger.Warn("Failed to close source file", "path", localFullPath, "error", err)
+		}
+	}()
 
 	// Create destination file
 	dst, err := os.Create(remoteAbsPath)
@@ -216,14 +230,20 @@ func (l *LocalFileSystem) Upload(ctx context.Context, localFullPath, remoteRelPa
 		l.logger.Error("Failed to create destination file", "path", remoteAbsPath, "error", err)
 		return nil, fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dst.Close()
+	defer func() {
+		if err := dst.Close(); err != nil {
+			l.logger.Warn("Failed to close destination file", "path", remoteAbsPath, "error", err)
+		}
+	}()
 
 	// Copy file content with context checking
 	size, err := l.copyWithContext(ctx, dst, src)
 	if err != nil {
 		l.logger.Error("Failed to copy file content", "local_full_path", localFullPath, "remote_abs_path", remoteAbsPath, "error", err)
 		// Clean up partial file on error
-		os.Remove(remoteAbsPath)
+		if removeErr := os.Remove(remoteAbsPath); removeErr != nil {
+			l.logger.Warn("Failed to remove file after copy error", "path", remoteAbsPath, "error", removeErr)
+		}
 		return nil, fmt.Errorf("failed to copy file content: %w", err)
 	}
 

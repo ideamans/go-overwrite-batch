@@ -2,7 +2,6 @@ package backlog
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,11 +43,15 @@ func init() {
 
 func TestGzipBacklogManager_WriteAndRead(t *testing.T) {
 	// Create temporary directory
-	tempDir, err := ioutil.TempDir("", "backlog_test")
+	tempDir, err := os.MkdirTemp("", "backlog_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	backlogPath := filepath.Join(tempDir, "test.backlog.gz")
 	manager := NewGzipBacklogManager(backlogPath)
@@ -122,11 +125,15 @@ func TestGzipBacklogManager_WriteAndRead(t *testing.T) {
 
 func TestGzipBacklogManager_EmptyBacklog(t *testing.T) {
 	// Create temporary directory
-	tempDir, err := ioutil.TempDir("", "backlog_test")
+	tempDir, err := os.MkdirTemp("", "backlog_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	backlogPath := filepath.Join(tempDir, "empty.backlog.gz")
 	manager := NewGzipBacklogManager(backlogPath)
@@ -185,11 +192,15 @@ func TestGzipBacklogManager_NonExistentFile(t *testing.T) {
 
 func TestGzipBacklogManager_CancellationDuringWrite(t *testing.T) {
 	// Create temporary directory
-	tempDir, err := ioutil.TempDir("", "backlog_test")
+	tempDir, err := os.MkdirTemp("", "backlog_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	backlogPath := filepath.Join(tempDir, "cancelled.backlog.gz")
 	manager := NewGzipBacklogManager(backlogPath)
@@ -213,11 +224,15 @@ func TestGzipBacklogManager_CancellationDuringWrite(t *testing.T) {
 
 func TestGzipBacklogManager_CancellationDuringRead(t *testing.T) {
 	// Create temporary directory
-	tempDir, err := ioutil.TempDir("", "backlog_test")
+	tempDir, err := os.MkdirTemp("", "backlog_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	backlogPath := filepath.Join(tempDir, "read_cancel.backlog.gz")
 	manager := NewGzipBacklogManager(backlogPath)
@@ -266,11 +281,15 @@ func TestGzipBacklogManager_CancellationDuringRead(t *testing.T) {
 
 func TestGzipBacklogManager_LargeBacklog(t *testing.T) {
 	// Create temporary directory
-	tempDir, err := ioutil.TempDir("", "backlog_test")
+	tempDir, err := os.MkdirTemp("", "backlog_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	backlogPath := filepath.Join(tempDir, "large.backlog.gz")
 	manager := NewGzipBacklogManager(backlogPath)

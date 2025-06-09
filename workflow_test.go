@@ -188,17 +188,7 @@ func createTestFileInfos(count int) []FileInfo {
 // Test data and helpers for specific scenarios
 
 var (
-	testError          = errors.New("test error")
-	retryableTestError = &common.NetworkError{
-		Operation:   "test operation",
-		Cause:       errors.New("network timeout"),
-		ShouldRetry: true,
-	}
-	nonRetryableTestError = &common.NetworkError{
-		Operation:   "test operation",
-		Cause:       errors.New("authentication failed"),
-		ShouldRetry: false,
-	}
+	errTest = errors.New("test error")
 )
 
 // Progress tracking helper for tests
@@ -218,11 +208,6 @@ func (pt *progressTracker) callback(processed, total int64) {
 	pt.calls = append(pt.calls, progressCall{processed: processed, total: total})
 }
 
-func (pt *progressTracker) reset() {
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-	pt.calls = nil
-}
 
 func (pt *progressTracker) callCount() int {
 	pt.mu.Lock()
@@ -304,7 +289,7 @@ func TestOverwriteWorkflow_ScanAndFilter_FileSystemError(t *testing.T) {
 
 	// Mock FileSystem to return error
 	fs.WalkFunc = func(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error {
-		return testError
+		return errTest
 	}
 
 	// Execute
@@ -317,8 +302,8 @@ func TestOverwriteWorkflow_ScanAndFilter_FileSystemError(t *testing.T) {
 	err := workflow.ScanAndFilter(context.Background(), options)
 
 	// Verify
-	if err != testError {
-		t.Errorf("Expected testError, got: %v", err)
+	if err != errTest {
+		t.Errorf("Expected errTest, got: %v", err)
 	}
 }
 
@@ -341,7 +326,7 @@ func TestOverwriteWorkflow_ScanAndFilter_StatusMemoryError(t *testing.T) {
 			for range entries {
 			}
 		}()
-		return nil, testError
+		return nil, errTest
 	}
 
 	// Execute
@@ -349,8 +334,8 @@ func TestOverwriteWorkflow_ScanAndFilter_StatusMemoryError(t *testing.T) {
 	err := workflow.ScanAndFilter(context.Background(), options)
 
 	// Verify
-	if err != testError {
-		t.Errorf("Expected testError, got: %v", err)
+	if err != errTest {
+		t.Errorf("Expected errTest, got: %v", err)
 	}
 }
 
@@ -383,7 +368,7 @@ func TestOverwriteWorkflow_ScanAndFilter_BacklogManagerError(t *testing.T) {
 		// Consume to avoid blocking
 		for range relPaths {
 		}
-		return testError
+		return errTest
 	}
 
 	// Execute
@@ -391,8 +376,8 @@ func TestOverwriteWorkflow_ScanAndFilter_BacklogManagerError(t *testing.T) {
 	err := workflow.ScanAndFilter(context.Background(), options)
 
 	// Verify
-	if err != testError {
-		t.Errorf("Expected testError, got: %v", err)
+	if err != errTest {
+		t.Errorf("Expected errTest, got: %v", err)
 	}
 }
 
@@ -503,7 +488,7 @@ func TestOverwriteWorkflow_ProcessFiles_DownloadError(t *testing.T) {
 
 	// Mock FileSystem to fail download
 	fs.DownloadFunc = func(ctx context.Context, remoteRelPath, localFullPath string) error {
-		return testError
+		return errTest
 	}
 
 	// Mock StatusMemory operations
@@ -539,7 +524,7 @@ func TestOverwriteWorkflow_ProcessFiles_BacklogManagerError(t *testing.T) {
 
 	// Mock BacklogManager to fail counting
 	backlog.CountRelPathsFunc = func(ctx context.Context) (int64, error) {
-		return 0, testError
+		return 0, errTest
 	}
 
 	// Execute
@@ -553,8 +538,8 @@ func TestOverwriteWorkflow_ProcessFiles_BacklogManagerError(t *testing.T) {
 	err := workflow.ProcessFiles(context.Background(), options)
 
 	// Verify
-	if err != testError {
-		t.Errorf("Expected testError, got: %v", err)
+	if err != errTest {
+		t.Errorf("Expected errTest, got: %v", err)
 	}
 }
 

@@ -36,7 +36,11 @@ func TestLocalFileSystem_Walk(t *testing.T) {
 	// Create temporary directory structure for testing
 	tempDir, err := os.MkdirTemp("", "local_fs_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Create test files and directories
 	createTestFiles(t, tempDir)
@@ -155,7 +159,11 @@ func TestLocalFileSystem_Walk(t *testing.T) {
 func TestLocalFileSystem_Walk_ContextCancellation(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "local_fs_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	createTestFiles(t, tempDir)
 
@@ -173,7 +181,11 @@ func TestLocalFileSystem_Walk_ContextCancellation(t *testing.T) {
 func TestLocalFileSystem_Download(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "local_fs_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Create source file
 	srcFile := filepath.Join(tempDir, "source.txt")
@@ -231,7 +243,11 @@ func TestLocalFileSystem_Download(t *testing.T) {
 func TestLocalFileSystem_Download_ContextCancellation(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "local_fs_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Create source file
 	srcFile := filepath.Join(tempDir, "source.txt")
@@ -256,7 +272,11 @@ func TestLocalFileSystem_Download_ContextCancellation(t *testing.T) {
 func TestLocalFileSystem_Upload(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "local_fs_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Create source file
 	srcFile := filepath.Join(tempDir, "source.txt")
@@ -324,7 +344,11 @@ func TestLocalFileSystem_Upload(t *testing.T) {
 func TestLocalFileSystem_Upload_ContextCancellation(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "local_fs_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Create source file
 	srcFile := filepath.Join(tempDir, "source.txt")
