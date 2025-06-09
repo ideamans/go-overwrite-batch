@@ -92,15 +92,27 @@ func (g *GzipBacklogManager) StartWriting(ctx context.Context, relPaths <-chan s
 		g.log("error", l10n.T("Failed to create backlog file"), "file_path", g.filePath, "error", err)
 		return fmt.Errorf("failed to create backlog file %s: %w", g.filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			g.log("warn", l10n.T("Failed to close backlog file"), "file_path", g.filePath, "error", err)
+		}
+	}()
 
 	// Create gzip writer
 	gzipWriter := gzip.NewWriter(file)
-	defer gzipWriter.Close()
+	defer func() {
+		if err := gzipWriter.Close(); err != nil {
+			g.log("warn", l10n.T("Failed to close gzip writer"), "error", err)
+		}
+	}()
 
 	// Create buffered writer for better performance
 	bufWriter := bufio.NewWriter(gzipWriter)
-	defer bufWriter.Flush()
+	defer func() {
+		if err := bufWriter.Flush(); err != nil {
+			g.log("warn", l10n.T("Failed to flush buffer"), "error", err)
+		}
+	}()
 
 	entryCount := int64(0)
 
@@ -151,7 +163,9 @@ func (g *GzipBacklogManager) StartReading(ctx context.Context) (<-chan string, e
 	// Create gzip reader
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
-		file.Close()
+		if closeErr := file.Close(); closeErr != nil {
+			g.log("warn", l10n.T("Failed to close file after gzip reader error"), "error", closeErr)
+		}
 		g.log("error", l10n.T("Failed to create gzip reader"), "file_path", g.filePath, "error", err)
 		return nil, fmt.Errorf("failed to create gzip reader for %s: %w", g.filePath, err)
 	}
@@ -166,8 +180,16 @@ func (g *GzipBacklogManager) StartReading(ctx context.Context) (<-chan string, e
 	// Start goroutine to read entries
 	go func() {
 		defer close(relPathChan)
-		defer gzipReader.Close()
-		defer file.Close()
+		defer func() {
+			if err := gzipReader.Close(); err != nil {
+				g.log("warn", l10n.T("Failed to close gzip reader"), "error", err)
+			}
+		}()
+		defer func() {
+			if err := file.Close(); err != nil {
+				g.log("warn", l10n.T("Failed to close file"), "error", err)
+			}
+		}()
 
 		entryCount := int64(0)
 
@@ -222,7 +244,11 @@ func (g *GzipBacklogManager) CountRelPaths(ctx context.Context) (int64, error) {
 		g.log("error", l10n.T("Failed to open backlog file"), "file_path", g.filePath, "error", err)
 		return 0, fmt.Errorf("failed to open backlog file %s: %w", g.filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			g.log("warn", l10n.T("Failed to close file"), "error", err)
+		}
+	}()
 
 	// Create gzip reader
 	gzipReader, err := gzip.NewReader(file)
@@ -230,7 +256,11 @@ func (g *GzipBacklogManager) CountRelPaths(ctx context.Context) (int64, error) {
 		g.log("error", l10n.T("Failed to create gzip reader"), "file_path", g.filePath, "error", err)
 		return 0, fmt.Errorf("failed to create gzip reader for %s: %w", g.filePath, err)
 	}
-	defer gzipReader.Close()
+	defer func() {
+		if err := gzipReader.Close(); err != nil {
+			g.log("warn", l10n.T("Failed to close gzip reader"), "error", err)
+		}
+	}()
 
 	// Create buffered reader for better performance
 	bufReader := bufio.NewReader(gzipReader)

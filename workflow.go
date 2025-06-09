@@ -2,7 +2,6 @@ package uobf
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -234,14 +233,22 @@ func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, ret
 	}
 
 	// Create temporary file for download
-	tempFile, err := ioutil.TempFile("", "uobf_*"+filepath.Ext(relPath))
+	tempFile, err := os.CreateTemp("", "uobf_*"+filepath.Ext(relPath))
 	if err != nil {
-		w.statusMemory.ReportError(ctx, fileInfo, err)
+		if reportErr := w.statusMemory.ReportError(ctx, fileInfo, err); reportErr != nil {
+			w.logger.Warn(l10n.T("Failed to report error to status memory"), "error", reportErr)
+		}
 		return err
 	}
 	tempPath := tempFile.Name()
-	tempFile.Close()
-	defer os.Remove(tempPath)
+	if err := tempFile.Close(); err != nil {
+		w.logger.Warn(l10n.T("Failed to close temp file"), "error", err)
+	}
+	defer func() {
+		if err := os.Remove(tempPath); err != nil && !os.IsNotExist(err) {
+			w.logger.Warn(l10n.T("Failed to remove temp file"), "path", tempPath, "error", err)
+		}
+	}()
 
 	// Download with retry
 	downloadErr := retryExecutor.Execute(ctx, func() error {
@@ -249,7 +256,9 @@ func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, ret
 	})
 	if downloadErr != nil {
 		w.logger.Error(l10n.T("Download failed"), "rel_path", relPath, "error", downloadErr)
-		w.statusMemory.ReportError(ctx, fileInfo, downloadErr)
+		if reportErr := w.statusMemory.ReportError(ctx, fileInfo, downloadErr); reportErr != nil {
+			w.logger.Warn(l10n.T("Failed to report download error to status memory"), "error", reportErr)
+		}
 		return downloadErr
 	}
 
@@ -259,7 +268,9 @@ func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, ret
 	processedPath, processErr := processFunc(ctx, tempPath)
 	if processErr != nil {
 		w.logger.Error(l10n.T("Processing failed"), "rel_path", relPath, "error", processErr)
-		w.statusMemory.ReportError(ctx, fileInfo, processErr)
+		if reportErr := w.statusMemory.ReportError(ctx, fileInfo, processErr); reportErr != nil {
+			w.logger.Warn(l10n.T("Failed to report process error to status memory"), "error", reportErr)
+		}
 		return processErr
 	}
 
@@ -274,7 +285,9 @@ func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, ret
 	})
 	if uploadErr != nil {
 		w.logger.Error(l10n.T("Upload failed"), "rel_path", relPath, "error", uploadErr)
-		w.statusMemory.ReportError(ctx, fileInfo, uploadErr)
+		if reportErr := w.statusMemory.ReportError(ctx, fileInfo, uploadErr); reportErr != nil {
+			w.logger.Warn(l10n.T("Failed to report upload error to status memory"), "error", reportErr)
+		}
 		return uploadErr
 	}
 

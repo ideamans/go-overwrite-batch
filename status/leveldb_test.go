@@ -17,12 +17,20 @@ import (
 func TestNewLevelDBStatusMemory(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 
 	assert.NotNil(t, sm)
 	assert.NotNil(t, sm.db)
@@ -34,13 +42,21 @@ func TestNewLevelDBStatusMemory(t *testing.T) {
 func TestNewLevelDBStatusMemory_DirectoryCreation(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Test with nested directory that doesn't exist
 	dbPath := filepath.Join(tempDir, "nested", "dir", "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 
 	assert.NotNil(t, sm)
 	assert.DirExists(t, filepath.Dir(dbPath))
@@ -49,12 +65,20 @@ func TestNewLevelDBStatusMemory_DirectoryCreation(t *testing.T) {
 func TestLevelDBStatusMemory_SetLogger(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 
 	mockLogger := &mockLogger{}
 	sm.SetLogger(mockLogger)
@@ -64,12 +88,20 @@ func TestLevelDBStatusMemory_SetLogger(t *testing.T) {
 func TestLevelDBStatusMemory_NeedsProcessing_NewFiles(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	// Create test files
@@ -113,12 +145,20 @@ func TestLevelDBStatusMemory_NeedsProcessing_NewFiles(t *testing.T) {
 func TestLevelDBStatusMemory_NeedsProcessing_ExistingFiles(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	baseTime := time.Now()
@@ -165,12 +205,20 @@ func TestLevelDBStatusMemory_NeedsProcessing_ExistingFiles(t *testing.T) {
 func TestLevelDBStatusMemory_NeedsProcessing_ModifiedFiles(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	baseTime := time.Now()
@@ -256,12 +304,20 @@ func TestLevelDBStatusMemory_NeedsProcessing_ModifiedFiles(t *testing.T) {
 func TestLevelDBStatusMemory_NeedsProcessing_FilesWithErrors(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	// Create and report a file with error
@@ -296,12 +352,20 @@ func TestLevelDBStatusMemory_NeedsProcessing_FilesWithErrors(t *testing.T) {
 func TestLevelDBStatusMemory_NeedsProcessing_ContextCancellation(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	// Create input channel
@@ -349,12 +413,20 @@ func TestLevelDBStatusMemory_NeedsProcessing_ContextCancellation(t *testing.T) {
 func TestLevelDBStatusMemory_ReportDone(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	fileInfo := uobf.FileInfo{
@@ -383,12 +455,20 @@ func TestLevelDBStatusMemory_ReportDone(t *testing.T) {
 func TestLevelDBStatusMemory_ReportError(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	fileInfo := uobf.FileInfo{
@@ -419,12 +499,20 @@ func TestLevelDBStatusMemory_ReportError(t *testing.T) {
 func TestLevelDBStatusMemory_GetStatus_NotFound(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 
 	status, exists := sm.GetStatus("nonexistent.txt")
 	assert.False(t, exists)
@@ -434,12 +522,20 @@ func TestLevelDBStatusMemory_GetStatus_NotFound(t *testing.T) {
 func TestLevelDBStatusMemory_GetAllStatus(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	// Add some files
@@ -477,12 +573,20 @@ func TestLevelDBStatusMemory_GetAllStatus(t *testing.T) {
 func TestLevelDBStatusMemory_Clear(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	// Add some files
@@ -505,12 +609,20 @@ func TestLevelDBStatusMemory_Clear(t *testing.T) {
 func TestLevelDBStatusMemory_ConcurrentAccess(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	ctx := context.Background()
@@ -561,12 +673,20 @@ func TestLevelDBStatusMemory_ConcurrentAccess(t *testing.T) {
 func TestLevelDBStatusMemory_LargeDataset(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm.Close()
+	defer func() {
+		if err := sm.Close(); err != nil {
+			t.Logf("Failed to close status memory: %v", err)
+		}
+	}()
 	sm.SetLogger(&mockLogger{})
 
 	const numFiles = 10000
@@ -634,7 +754,11 @@ func TestLevelDBStatusMemory_LargeDataset(t *testing.T) {
 func TestLevelDBStatusMemory_PersistenceAfterClose(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 
@@ -665,7 +789,11 @@ func TestLevelDBStatusMemory_PersistenceAfterClose(t *testing.T) {
 	// Second instance: reopen and verify data persists
 	sm2, err := NewLevelDBStatusMemory(dbPath)
 	require.NoError(t, err)
-	defer sm2.Close()
+	defer func() {
+		if err := sm2.Close(); err != nil {
+			t.Logf("Failed to close status memory 2: %v", err)
+		}
+	}()
 	sm2.SetLogger(&mockLogger{})
 
 	// Verify data persisted
@@ -696,7 +824,11 @@ func TestLevelDBStatusMemory_PersistenceAfterClose(t *testing.T) {
 func TestLevelDBStatusMemory_Close(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "leveldb_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 	sm, err := NewLevelDBStatusMemory(dbPath)
@@ -708,5 +840,5 @@ func TestLevelDBStatusMemory_Close(t *testing.T) {
 
 	// Test multiple closes (should not return error, but may fail quietly)
 	// LevelDB Close() returns error on second call, which is expected behavior
-	sm.Close() // Don't check error for second close
+	_ = sm.Close() // Don't check error for second close - expected to fail
 }
