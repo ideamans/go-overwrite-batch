@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	uobf "github.com/ideamans/overwritebatch"
+	uobf "github.com/ideamans/go-overwrite-batch"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -395,7 +395,7 @@ func TestLevelDBStatusMemory_NeedsProcessing_ContextCancellation(t *testing.T) {
 
 	// Give a moment for the goroutine to start processing
 	time.Sleep(1 * time.Millisecond)
-	
+
 	// Cancel context after starting
 	cancel()
 

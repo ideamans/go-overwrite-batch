@@ -75,8 +75,10 @@ FileSystem.Walk() → StatusMemory.NeedsProcessing() → BacklogManager.WriteBac
 **Phase 2: Process Files**  
 
 ```
-BacklogManager.ReadBacklogFile() → Worker Pool → Download → Process → Upload → Status Update
+BacklogManager.ReadBacklogFile() → Worker Pool → FileSystem.Overwrite() → Status Update
 ```
+
+The `Overwrite` method combines download, process, and upload operations in a single atomic operation with callback-based processing.
 
 See `plan/architecture.md` for detailed architecture documentation.
 
@@ -86,7 +88,12 @@ The project follows a clean architecture with shared utilities in the `common` p
 
 ## Core Interfaces (uobf.go)
 
-- `FileSystem` interface - Unified filesystem operations
+- `FileSystem` interface - Unified filesystem operations with `Walk` and `Overwrite` methods
+  - `Walk`: Traverses directories with filtering options
+  - `Overwrite`: Combines download, process via callback, and optional upload in one atomic operation
+- `OverwriteCallback` type - Function signature for processing downloaded files
+  - Returns processed file path, autoRemove flag, and error
+  - If autoRemove is true and processed path differs from source, the processed file is deleted after upload
 - `StatusMemory` interface - Processing state management  
 - `BacklogManager` interface - Compressed backlog file handling
 - `OverwriteWorkflow` struct - Main workflow orchestrator (implementation in workflow.go)
@@ -317,7 +324,7 @@ NEVER proactively create documentation files (*.md) or README files. Only create
 
 ALWAYS use the l10n package for any user-facing text in code:
 
-- Import `github.com/ideamans/overwritebatch/l10n` in all components
+- Import `github.com/ideamans/go-overwrite-batch/l10n` in all components
 - Wrap all log messages with `l10n.T("message")`
 - Wrap all error messages with `l10n.T("error message")`
 - Register Japanese translations using `l10n.Register("ja", l10n.LexiconMap{...})` in `init()` function

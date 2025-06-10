@@ -2,13 +2,14 @@ package filesystem
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	uobf "github.com/ideamans/overwritebatch"
-	"github.com/ideamans/overwritebatch/common"
+	uobf "github.com/ideamans/go-overwrite-batch"
+	"github.com/ideamans/go-overwrite-batch/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -179,7 +180,7 @@ func TestLocalFileSystem_Walk_ContextCancellation(t *testing.T) {
 	assert.Equal(t, context.Canceled, err)
 }
 
-func TestLocalFileSystem_Download(t *testing.T) {
+func TestLocalFileSystem_Overwrite(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "local_fs_test")
 	require.NoError(t, err)
 	defer func() {
@@ -197,178 +198,190 @@ func TestLocalFileSystem_Download(t *testing.T) {
 	tests := []struct {
 		name          string
 		remoteRelPath string
-		localFullPath string
+		processFunc   func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error)
 		wantErr       bool
+		wantContent   string
+		wantSkip      bool
 	}{
 		{
-			name:          "successful download",
+			name:          "successful overwrite",
 			remoteRelPath: "source.txt",
-			localFullPath: filepath.Join(tempDir, "downloaded.txt"),
-			wantErr:       false,
+			processFunc: func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error) {
+				// Process the file (uppercase content)
+				processedPath := srcFilePath + ".processed"
+				processedContent := "PROCESSED: " + content
+				err := os.WriteFile(processedPath, []byte(processedContent), 0644)
+				if err != nil {
+					return "", false, err
+				}
+				// Return true for autoRemove since we created a new file
+				return processedPath, true, nil
+			},
+			wantErr:     false,
+			wantContent: "PROCESSED: test content",
+			wantSkip:    false,
 		},
 		{
-			name:          "download to subdirectory",
+			name:          "intentional skip",
 			remoteRelPath: "source.txt",
-			localFullPath: filepath.Join(tempDir, "subdir", "downloaded.txt"),
-			wantErr:       false,
+			processFunc: func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error) {
+				// Return empty string to skip upload
+				return "", false, nil
+			},
+			wantErr:     false,
+			wantContent: content, // Original content unchanged
+			wantSkip:    true,
+		},
+		{
+			name:          "processing error",
+			remoteRelPath: "source.txt",
+			processFunc: func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error) {
+				return "", false, errors.New("processing failed")
+			},
+			wantErr:     true,
+			wantContent: content, // Original content unchanged
+			wantSkip:    false,
 		},
 		{
 			name:          "non-existent source file",
 			remoteRelPath: "nonexistent.txt",
-			localFullPath: filepath.Join(tempDir, "downloaded.txt"),
-			wantErr:       true,
+			processFunc: func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error) {
+				return srcFilePath, false, nil
+			},
+			wantErr:  true,
+			wantSkip: false,
+		},
+		{
+			name:          "successful overwrite with autoRemove",
+			remoteRelPath: "source.txt",
+			processFunc: func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error) {
+				// Process the file and request auto-removal
+				processedPath := srcFilePath + ".processed_autoremove"
+				processedContent := "AUTOREMOVE: " + content
+				err := os.WriteFile(processedPath, []byte(processedContent), 0644)
+				if err != nil {
+					return "", false, err
+				}
+				// Return true for autoRemove
+				return processedPath, true, nil
+			},
+			wantErr:     false,
+			wantContent: "AUTOREMOVE: test content",
+			wantSkip:    false,
+		},
+		{
+			name:          "in-place modification (same file path)",
+			remoteRelPath: "source.txt",
+			processFunc: func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error) {
+				// Modify the file in-place and return the same path
+				inPlaceContent := "IN-PLACE: " + content
+				err := os.WriteFile(srcFilePath, []byte(inPlaceContent), 0644)
+				if err != nil {
+					return "", false, err
+				}
+				// Return same path - file should NOT be deleted even with autoRemove=true
+				return srcFilePath, true, nil
+			},
+			wantErr:     false,
+			wantContent: "IN-PLACE: test content",
+			wantSkip:    false,
+		},
+		{
+			name:          "autoRemove false with different path",
+			remoteRelPath: "source.txt",
+			processFunc: func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error) {
+				// Process the file but don't request auto-removal
+				processedPath := srcFilePath + ".no_autoremove"
+				processedContent := "NO_AUTOREMOVE: " + content
+				err := os.WriteFile(processedPath, []byte(processedContent), 0644)
+				if err != nil {
+					return "", false, err
+				}
+				// Return false for autoRemove - file should remain
+				return processedPath, false, nil
+			},
+			wantErr:     false,
+			wantContent: "NO_AUTOREMOVE: test content",
+			wantSkip:    false,
+		},
+		{
+			name:          "non-existent processed file",
+			remoteRelPath: "source.txt",
+			processFunc: func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error) {
+				// Return a path that doesn't exist
+				return "/tmp/non-existent-file-12345.txt", false, nil
+			},
+			wantErr:     true,
+			wantContent: content, // Original content unchanged
+			wantSkip:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fs := NewLocalFileSystem(tempDir)
-			fs.SetLogger(&mockLogger{})
+			// Create a fresh subdirectory for each test to avoid interference
+			testSubDir := filepath.Join(tempDir, tt.name)
+			err := os.MkdirAll(testSubDir, 0755)
+			require.NoError(t, err)
 
-			err := fs.Download(context.Background(), tt.remoteRelPath, tt.localFullPath)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-
-				// Verify file was copied correctly
-				downloadedContent, err := os.ReadFile(tt.localFullPath)
-				assert.NoError(t, err)
-				assert.Equal(t, content, string(downloadedContent))
+			// Create the source file in the subdirectory if it should exist
+			if tt.remoteRelPath != "nonexistent.txt" {
+				testSrcFile := filepath.Join(testSubDir, tt.remoteRelPath)
+				testSrcDir := filepath.Dir(testSrcFile)
+				if testSrcDir != testSubDir {
+					err = os.MkdirAll(testSrcDir, 0755)
+					require.NoError(t, err)
+				}
+				err = os.WriteFile(testSrcFile, []byte(content), 0644)
+				require.NoError(t, err)
 			}
-		})
-	}
-}
 
-func TestLocalFileSystem_Download_ContextCancellation(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "local_fs_test")
-	require.NoError(t, err)
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to remove temp dir: %v", err)
-		}
-	}()
-
-	// Create a larger source file to ensure context cancellation can happen during copy
-	srcFile := filepath.Join(tempDir, "source.txt")
-	// Create 10MB file to increase chance of catching cancellation
-	largeContent := make([]byte, 10*1024*1024)
-	for i := range largeContent {
-		largeContent[i] = byte(i % 256)
-	}
-	err = os.WriteFile(srcFile, largeContent, 0644)
-	require.NoError(t, err)
-
-	fs := NewLocalFileSystem(tempDir)
-	ctx, cancel := context.WithCancel(context.Background())
-	
-	// Cancel context after a short delay to allow copy to start
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		cancel()
-	}()
-
-	localPath := filepath.Join(tempDir, "downloaded.txt")
-	err = fs.Download(ctx, "source.txt", localPath)
-
-	// Either context canceled or successful completion is acceptable
-	// on fast systems, the copy might complete before cancellation
-	if err != nil {
-		assert.Contains(t, err.Error(), "context canceled")
-		// Verify partial file was cleaned up
-		// On Windows, file deletion might be delayed
-		_, statErr := os.Stat(localPath)
-		if statErr == nil {
-			// File exists, it might be a partial file
-			info, _ := os.Stat(localPath)
-			// Partial file should be smaller than the original
-			assert.Less(t, info.Size(), int64(len(largeContent)))
-		} else {
-			// File was properly cleaned up
-			assert.True(t, os.IsNotExist(statErr))
-		}
-	} else {
-		// If no error, file should exist and be complete
-		info, statErr := os.Stat(localPath)
-		assert.NoError(t, statErr)
-		assert.Equal(t, int64(len(largeContent)), info.Size())
-	}
-}
-
-func TestLocalFileSystem_Upload(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "local_fs_test")
-	require.NoError(t, err)
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to remove temp dir: %v", err)
-		}
-	}()
-
-	// Create source file
-	srcFile := filepath.Join(tempDir, "source.txt")
-	content := "test upload content"
-	err = os.WriteFile(srcFile, []byte(content), 0644)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name          string
-		localFullPath string
-		remoteRelPath string
-		wantErr       bool
-	}{
-		{
-			name:          "successful upload",
-			localFullPath: srcFile,
-			remoteRelPath: "uploaded.txt",
-			wantErr:       false,
-		},
-		{
-			name:          "upload to subdirectory",
-			localFullPath: srcFile,
-			remoteRelPath: "subdir/uploaded.txt",
-			wantErr:       false,
-		},
-		{
-			name:          "non-existent source file",
-			localFullPath: filepath.Join(tempDir, "nonexistent.txt"),
-			remoteRelPath: "uploaded.txt",
-			wantErr:       true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fs := NewLocalFileSystem(tempDir)
+			fs := NewLocalFileSystem(testSubDir)
 			fs.SetLogger(&mockLogger{})
 
-			fileInfo, err := fs.Upload(context.Background(), tt.localFullPath, tt.remoteRelPath)
+			fileInfo, err := fs.Overwrite(context.Background(), tt.remoteRelPath, tt.processFunc)
 
 			if tt.wantErr {
 				assert.Error(t, err)
-				assert.Nil(t, fileInfo)
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, fileInfo)
+				assert.Equal(t, tt.remoteRelPath, fileInfo.RelPath)
 
-				// Verify file info
-				assert.Equal(t, filepath.Base(tt.remoteRelPath), fileInfo.Name)
-				assert.Equal(t, int64(len(content)), fileInfo.Size)
-				expectedAbsPath := filepath.Join(tempDir, tt.remoteRelPath)
-				assert.Equal(t, expectedAbsPath, fileInfo.AbsPath)
-				assert.False(t, fileInfo.IsDir)
-				assert.Equal(t, filepath.ToSlash(tt.remoteRelPath), fileInfo.RelPath)
-
-				// Verify file was copied correctly
-				uploadedContent, err := os.ReadFile(expectedAbsPath)
+				// Verify file content
+				actualContent, err := os.ReadFile(filepath.Join(testSubDir, tt.remoteRelPath))
 				assert.NoError(t, err)
-				assert.Equal(t, content, string(uploadedContent))
+				assert.Equal(t, tt.wantContent, string(actualContent))
+
+				// Verify autoRemove behavior
+				switch tt.name {
+				case "successful overwrite with autoRemove":
+					// The processed file should have been deleted
+					processedFiles, err := filepath.Glob(filepath.Join(testSubDir, "*.processed_autoremove"))
+					assert.NoError(t, err)
+					assert.Empty(t, processedFiles, "Processed file should have been auto-removed")
+
+				case "in-place modification (same file path)":
+					// The temp file should still exist (not deleted because it's the same as srcFilePath)
+					// This is handled by the temporary file cleanup in Overwrite method
+
+				case "autoRemove false with different path":
+					// The processed file should still exist
+					// Note: The processed file is created in the system temp directory, not testSubDir
+					processedFiles, err := filepath.Glob(filepath.Join(os.TempDir(), "uobf-download-*.no_autoremove"))
+					assert.NoError(t, err)
+					assert.GreaterOrEqual(t, len(processedFiles), 1, "Processed file should NOT have been removed when autoRemove=false")
+					// Clean it up
+					for _, f := range processedFiles {
+						os.Remove(f)
+					}
+				}
 			}
 		})
 	}
 }
 
-func TestLocalFileSystem_Upload_ContextCancellation(t *testing.T) {
+func TestLocalFileSystem_Overwrite_ContextCancellation(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "local_fs_test")
 	require.NoError(t, err)
 	defer func() {
@@ -389,42 +402,35 @@ func TestLocalFileSystem_Upload_ContextCancellation(t *testing.T) {
 
 	fs := NewLocalFileSystem(tempDir)
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Cancel context after a short delay to allow copy to start
 	go func() {
 		time.Sleep(10 * time.Millisecond)
 		cancel()
 	}()
 
-	remoteRelPath := "uploaded.txt"
-	fileInfo, err := fs.Upload(ctx, srcFile, remoteRelPath)
+	_, err = fs.Overwrite(ctx, "source.txt", func(fileInfo uobf.FileInfo, srcFilePath string) (string, bool, error) {
+		// Just return the same file path to simulate upload
+		return srcFilePath, false, nil
+	})
 
 	// Either context canceled or successful completion is acceptable
-	// on fast systems, the copy might complete before cancellation
-	remoteAbsPath := filepath.Join(tempDir, remoteRelPath)
+	// on fast systems, the operation might complete before cancellation
 	if err != nil {
 		assert.Contains(t, err.Error(), "context canceled")
-		assert.Nil(t, fileInfo)
-		// Verify partial file was cleaned up
-		// On Windows, file deletion might be delayed
-		_, statErr := os.Stat(remoteAbsPath)
-		if statErr == nil {
-			// File exists, it might be a partial file
-			info, _ := os.Stat(remoteAbsPath)
-			// Partial file should be smaller than the original
-			assert.Less(t, info.Size(), int64(len(largeContent)))
-		} else {
-			// File was properly cleaned up
-			assert.True(t, os.IsNotExist(statErr))
-		}
 	} else {
-		// If no error, file should exist and be complete
-		assert.NotNil(t, fileInfo)
-		info, statErr := os.Stat(remoteAbsPath)
+		// If no error, file should still exist and be unchanged
+		info, statErr := os.Stat(srcFile)
 		assert.NoError(t, statErr)
 		assert.Equal(t, int64(len(largeContent)), info.Size())
 	}
 }
+
+// TestLocalFileSystem_Upload has been removed as Upload method no longer exists.
+// Upload functionality is now part of the Overwrite method and is tested in TestLocalFileSystem_Overwrite.
+
+// TestLocalFileSystem_Upload_ContextCancellation has been removed as Upload method no longer exists.
+// Context cancellation during upload is now tested as part of TestLocalFileSystem_Overwrite_ContextCancellation.
 
 func TestLocalFileSystem_shouldIncludeFile(t *testing.T) {
 	fs := NewLocalFileSystem("/test/path")

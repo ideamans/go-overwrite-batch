@@ -15,7 +15,7 @@
 ## インストール
 
 ```bash
-go get github.com/ideamans/overwritebatch
+go get github.com/ideamans/go-overwrite-batch
 ```
 
 ## クイックスタート
@@ -27,10 +27,10 @@ import (
     "context"
     "log"
     
-    uobf "github.com/ideamans/overwritebatch"
-    "github.com/ideamans/overwritebatch/backlog"
-    "github.com/ideamans/overwritebatch/filesystem"
-    "github.com/ideamans/overwritebatch/status"
+    uobf "github.com/ideamans/go-overwrite-batch"
+    "github.com/ideamans/go-overwrite-batch/backlog"
+    "github.com/ideamans/go-overwrite-batch/filesystem"
+    "github.com/ideamans/go-overwrite-batch/status"
 )
 
 func main() {
@@ -82,12 +82,14 @@ func main() {
 ライブラリは2フェーズワークフローを実装しています：
 
 ### フェーズ1: スキャン＆フィルタ
+
 - ソースファイルシステムをトラバース
 - include/excludeパターンに基づいてファイルをフィルタリング
 - 重複を避けるため処理ステータスをチェック
 - ファイルパスを圧縮バックログに書き込み
 
 ### フェーズ2: ファイル処理
+
 - バックログからファイルパスを読み取り
 - ワーカープールを使用して並列でファイルをダウンロード
 - ユーザー定義の処理関数を適用
@@ -97,20 +99,26 @@ func main() {
 ## コンポーネント
 
 ### FileSystemインターフェース
+
 異なるストレージタイプに対する統一的な操作を提供：
+
 - `Walk`: ディレクトリ構造をトラバース
 - `ReadFile`: ファイルコンテンツをダウンロード
 - `WriteFile`: ファイルコンテンツをアップロード
 - `Stat`: ファイル情報を取得
 
 ### StatusMemoryインターフェース
+
 ファイル処理状態を追跡：
+
 - `NeedsProcessing`: ファイルを処理すべきかチェック
 - `MarkAsProcessed`: 処理成功を記録
 - `MarkAsFailed`: 処理失敗を記録
 
 ### BacklogManagerインターフェース
+
 圧縮ファイルリストを管理：
+
 - `StartWriting`: バックログにファイルパスを書き込み
 - `StartReading`: バックログからファイルパスを読み取り
 - `CountRelPaths`: 進捗追跡のための総ファイル数をカウント

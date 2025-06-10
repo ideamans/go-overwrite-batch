@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ideamans/overwritebatch/common"
+	"github.com/ideamans/go-overwrite-batch/common"
 )
 
 // Mock implementations for testing
@@ -15,8 +15,7 @@ import (
 // MockFileSystem provides a mock implementation of FileSystem
 type MockFileSystem struct {
 	WalkFunc      func(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error
-	DownloadFunc  func(ctx context.Context, remoteRelPath, localFullPath string) error
-	UploadFunc    func(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error)
+	OverwriteFunc func(ctx context.Context, remoteRelPath string, callback OverwriteCallback) (*FileInfo, error)
 	CloseFunc     func() error
 	SetLoggerFunc func(logger common.Logger)
 }
@@ -29,24 +28,31 @@ func (m *MockFileSystem) Walk(ctx context.Context, options WalkOptions, ch chan<
 	return nil
 }
 
-func (m *MockFileSystem) Download(ctx context.Context, remoteRelPath, localFullPath string) error {
-	if m.DownloadFunc != nil {
-		return m.DownloadFunc(ctx, remoteRelPath, localFullPath)
+func (m *MockFileSystem) Overwrite(ctx context.Context, remoteRelPath string, callback OverwriteCallback) (*FileInfo, error) {
+	if m.OverwriteFunc != nil {
+		return m.OverwriteFunc(ctx, remoteRelPath, callback)
 	}
-	return nil
-}
-
-func (m *MockFileSystem) Upload(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error) {
-	if m.UploadFunc != nil {
-		return m.UploadFunc(ctx, localFullPath, remoteRelPath)
-	}
-	return &FileInfo{
+	// Default implementation: simulate download, callback, and upload
+	fileInfo := FileInfo{
 		Name:    "test.txt",
 		RelPath: remoteRelPath,
 		AbsPath: "/abs" + remoteRelPath,
 		Size:    1024,
 		ModTime: time.Now(),
-	}, nil
+	}
+	tempPath := "/tmp/test-" + remoteRelPath
+	processedPath, autoRemove, err := callback(fileInfo, tempPath)
+	if err != nil {
+		return nil, err
+	}
+	if processedPath == "" {
+		// Intentional skip
+		return &fileInfo, nil
+	}
+	// Simulate successful upload and auto-removal if needed
+	// (In a real implementation, we would delete processedPath here if autoRemove is true)
+	_ = autoRemove // Mark as used
+	return &fileInfo, nil
 }
 
 func (m *MockFileSystem) Close() error {
@@ -207,7 +213,6 @@ func (pt *progressTracker) callback(processed, total int64) {
 	defer pt.mu.Unlock()
 	pt.calls = append(pt.calls, progressCall{processed: processed, total: total})
 }
-
 
 func (pt *progressTracker) callCount() int {
 	pt.mu.Lock()
@@ -402,18 +407,32 @@ func TestOverwriteWorkflow_ProcessFiles_Success(t *testing.T) {
 	}
 
 	// Mock FileSystem operations
-	fs.DownloadFunc = func(ctx context.Context, remoteRelPath, localFullPath string) error {
-		return nil // Success
-	}
-
-	fs.UploadFunc = func(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error) {
-		return &FileInfo{
+	fs.OverwriteFunc = func(ctx context.Context, remoteRelPath string, callback OverwriteCallback) (*FileInfo, error) {
+		// Simulate successful download and process
+		tempPath := "/tmp/test-" + remoteRelPath
+		fileInfo := FileInfo{
 			Name:    "test.txt",
 			RelPath: remoteRelPath,
 			AbsPath: "/abs/" + remoteRelPath,
 			Size:    1024,
 			ModTime: time.Now(),
-		}, nil
+		}
+
+		// Call the callback with the simulated download
+		processedPath, autoRemove, err := callback(fileInfo, tempPath)
+		if err != nil {
+			return nil, err
+		}
+
+		// If processed path is empty, it's an intentional skip
+		if processedPath == "" {
+			return &fileInfo, nil
+		}
+
+		// Simulate successful upload and auto-removal if needed
+		// (In a real implementation, we would delete processedPath here if autoRemove is true)
+		_ = autoRemove // Mark as used
+		return &fileInfo, nil
 	}
 
 	// Mock StatusMemory operations
@@ -486,9 +505,10 @@ func TestOverwriteWorkflow_ProcessFiles_DownloadError(t *testing.T) {
 		return ch, nil
 	}
 
-	// Mock FileSystem to fail download
-	fs.DownloadFunc = func(ctx context.Context, remoteRelPath, localFullPath string) error {
-		return errTest
+	// Mock FileSystem to fail during overwrite
+	fs.OverwriteFunc = func(ctx context.Context, remoteRelPath string, callback OverwriteCallback) (*FileInfo, error) {
+		// Simulate download failure
+		return nil, errTest
 	}
 
 	// Mock StatusMemory operations

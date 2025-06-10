@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ideamans/overwritebatch/common"
+	"github.com/ideamans/go-overwrite-batch/common"
 )
 
 // =============================================================================
@@ -48,6 +48,15 @@ type WalkOptions struct {
 	FilesOnly bool
 }
 
+// OverwriteCallback defines the function signature for file overwrite processing
+// fileInfo: metadata of the remote file
+// srcFilePath: local path where the file was downloaded
+// Returns:
+// - overwritingFilePath: path to the file to upload (empty string to skip upload)
+// - autoRemove: if true and overwritingFilePath != "" and overwritingFilePath != srcFilePath, delete overwritingFilePath after upload
+// - error: any error during processing
+type OverwriteCallback func(fileInfo FileInfo, srcFilePath string) (overwritingFilePath string, autoRemove bool, err error)
+
 // FileSystem is the main interface for filesystem operations
 type FileSystem interface {
 	// Close closes the filesystem connection
@@ -56,15 +65,13 @@ type FileSystem interface {
 	// Walk traverses directories with options and sends FileInfo to the channel
 	Walk(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error
 
-	// Download downloads a file from the filesystem to local path
+	// Overwrite downloads a file, processes it via callback, and optionally uploads the result
 	// remoteRelPath: relative path from filesystem root
-	// localFullPath: absolute path on local filesystem
-	Download(ctx context.Context, remoteRelPath, localFullPath string) error
-
-	// Upload uploads a local file to the filesystem and returns the uploaded file info
-	// localFullPath: absolute path on local filesystem
-	// remoteRelPath: relative path from filesystem root
-	Upload(ctx context.Context, localFullPath, remoteRelPath string) (*FileInfo, error)
+	// callback: function to process the downloaded file
+	// Returns the updated FileInfo and any error
+	// If callback returns empty string and no error, upload is skipped (intentional skip)
+	// If callback returns non-empty path, that file is uploaded to the same remote path
+	Overwrite(ctx context.Context, remoteRelPath string, callback OverwriteCallback) (*FileInfo, error)
 
 	// SetLogger sets the logger for the filesystem implementation
 	SetLogger(logger common.Logger)

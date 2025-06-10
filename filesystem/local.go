@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	uobf "github.com/ideamans/overwritebatch"
-	"github.com/ideamans/overwritebatch/common"
+	uobf "github.com/ideamans/go-overwrite-batch"
+	"github.com/ideamans/go-overwrite-batch/common"
 )
 
 // LocalFileSystem implements FileSystem interface for local filesystem operations
@@ -133,128 +133,124 @@ func (l *LocalFileSystem) Walk(ctx context.Context, options uobf.WalkOptions, ch
 	})
 }
 
-// Download downloads a file from the filesystem to local path (essentially a copy operation)
-func (l *LocalFileSystem) Download(ctx context.Context, remoteRelPath, localFullPath string) error {
-	l.logger.Debug("Starting file download", "remote_rel_path", remoteRelPath, "local_full_path", localFullPath)
+// Overwrite downloads a file, processes it via callback, and optionally uploads the result
+func (l *LocalFileSystem) Overwrite(ctx context.Context, remoteRelPath string, callback uobf.OverwriteCallback) (*uobf.FileInfo, error) {
+	l.logger.Debug("Starting file overwrite", "remote_rel_path", remoteRelPath)
 
 	// Convert relative path to absolute path
 	remoteAbsPath := filepath.Join(l.rootPath, remoteRelPath)
-
-	// Clean paths
 	remoteAbsPath = filepath.Clean(remoteAbsPath)
-	localFullPath = filepath.Clean(localFullPath)
 
-	// Create destination directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(localFullPath), 0755); err != nil {
-		l.logger.Error("Failed to create destination directory", "dir", filepath.Dir(localFullPath), "error", err)
-		return fmt.Errorf("failed to create destination directory: %w", err)
+	// Get file info first
+	fileInfo, err := os.Stat(remoteAbsPath)
+	if err != nil {
+		l.logger.Error("Failed to stat remote file", "path", remoteAbsPath, "error", err)
+		return nil, fmt.Errorf("failed to stat remote file: %w", err)
 	}
 
-	// Open source file
+	// Create FileInfo struct
+	uobfFileInfo := uobf.FileInfo{
+		Name:    fileInfo.Name(),
+		Size:    fileInfo.Size(),
+		Mode:    uint32(fileInfo.Mode()),
+		ModTime: fileInfo.ModTime(),
+		IsDir:   fileInfo.IsDir(),
+		RelPath: filepath.ToSlash(remoteRelPath),
+		AbsPath: remoteAbsPath,
+	}
+
+	// Create temporary file for download
+	tmpFile, err := os.CreateTemp("", "uobf-download-*")
+	if err != nil {
+		l.logger.Error("Failed to create temporary file", "error", err)
+		return nil, fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close() // Close immediately, we'll reopen for writing
+
+	// Ensure temporary file is cleaned up
+	defer func() {
+		if removeErr := os.Remove(tmpPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			l.logger.Warn("Failed to remove temporary file", "path", tmpPath, "error", removeErr)
+		}
+	}()
+
+	// Download file to temporary location
 	src, err := os.Open(remoteAbsPath)
 	if err != nil {
 		l.logger.Error("Failed to open source file", "path", remoteAbsPath, "error", err)
-		return fmt.Errorf("failed to open source file: %w", err)
-	}
-	defer func() {
-		if err := src.Close(); err != nil {
-			l.logger.Warn("Failed to close source file", "path", remoteAbsPath, "error", err)
-		}
-	}()
-
-	// Create destination file
-	dst, err := os.Create(localFullPath)
-	if err != nil {
-		l.logger.Error("Failed to create destination file", "path", localFullPath, "error", err)
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer func() {
-		if err := dst.Close(); err != nil {
-			l.logger.Warn("Failed to close destination file", "path", localFullPath, "error", err)
-		}
-	}()
-
-	// Copy file content with context checking
-	_, err = l.copyWithContext(ctx, dst, src)
-	if err != nil {
-		l.logger.Error("Failed to copy file content", "remote_abs_path", remoteAbsPath, "local_full_path", localFullPath, "error", err)
-		// Clean up partial file on error
-		if removeErr := os.Remove(localFullPath); removeErr != nil {
-			l.logger.Warn("Failed to remove file after copy error", "path", localFullPath, "error", removeErr)
-		}
-		return fmt.Errorf("failed to copy file content: %w", err)
-	}
-
-	l.logger.Info("File downloaded successfully", "remote_rel_path", remoteRelPath, "local_full_path", localFullPath)
-	return nil
-}
-
-// Upload uploads a local file to the filesystem and returns the uploaded file info (essentially a copy operation)
-func (l *LocalFileSystem) Upload(ctx context.Context, localFullPath, remoteRelPath string) (*uobf.FileInfo, error) {
-	l.logger.Debug("Starting file upload", "local_full_path", localFullPath, "remote_rel_path", remoteRelPath)
-
-	// Convert relative path to absolute path
-	remoteAbsPath := filepath.Join(l.rootPath, remoteRelPath)
-
-	// Clean paths
-	localFullPath = filepath.Clean(localFullPath)
-	remoteAbsPath = filepath.Clean(remoteAbsPath)
-
-	// Create destination directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(remoteAbsPath), 0755); err != nil {
-		l.logger.Error("Failed to create destination directory", "dir", filepath.Dir(remoteAbsPath), "error", err)
-		return nil, fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	// Check if source file exists
-	if _, err := os.Stat(localFullPath); err != nil {
-		l.logger.Error("Failed to stat source file", "path", localFullPath, "error", err)
-		return nil, fmt.Errorf("failed to stat source file: %w", err)
-	}
-
-	// Open source file
-	src, err := os.Open(localFullPath)
-	if err != nil {
-		l.logger.Error("Failed to open source file", "path", localFullPath, "error", err)
 		return nil, fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer func() {
-		if err := src.Close(); err != nil {
-			l.logger.Warn("Failed to close source file", "path", localFullPath, "error", err)
-		}
-	}()
+	defer src.Close()
 
-	// Create destination file
-	dst, err := os.Create(remoteAbsPath)
+	dst, err := os.Create(tmpPath)
 	if err != nil {
-		l.logger.Error("Failed to create destination file", "path", remoteAbsPath, "error", err)
-		return nil, fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer func() {
-		if err := dst.Close(); err != nil {
-			l.logger.Warn("Failed to close destination file", "path", remoteAbsPath, "error", err)
-		}
-	}()
-
-	// Copy file content with context checking
-	size, err := l.copyWithContext(ctx, dst, src)
-	if err != nil {
-		l.logger.Error("Failed to copy file content", "local_full_path", localFullPath, "remote_abs_path", remoteAbsPath, "error", err)
-		// Clean up partial file on error
-		if removeErr := os.Remove(remoteAbsPath); removeErr != nil {
-			l.logger.Warn("Failed to remove file after copy error", "path", remoteAbsPath, "error", removeErr)
-		}
-		return nil, fmt.Errorf("failed to copy file content: %w", err)
+		l.logger.Error("Failed to create temporary file for writing", "path", tmpPath, "error", err)
+		return nil, fmt.Errorf("failed to create temporary file for writing: %w", err)
 	}
 
-	// Get uploaded file info
+	_, err = l.copyWithContext(ctx, dst, src)
+	dst.Close()
+	if err != nil {
+		l.logger.Error("Failed to download file", "remote_abs_path", remoteAbsPath, "tmp_path", tmpPath, "error", err)
+		return nil, fmt.Errorf("failed to download file: %w", err)
+	}
+
+	l.logger.Debug("File downloaded to temporary location", "remote_rel_path", remoteRelPath, "tmp_path", tmpPath)
+
+	// Call the callback to process the file
+	overwritingFilePath, autoRemove, err := callback(uobfFileInfo, tmpPath)
+	if err != nil {
+		l.logger.Error("Callback returned error", "remote_rel_path", remoteRelPath, "error", err)
+		return nil, err
+	}
+
+	// If callback returns empty string and no error, it's an intentional skip
+	if overwritingFilePath == "" {
+		l.logger.Info("File processing skipped intentionally", "remote_rel_path", remoteRelPath)
+		return &uobfFileInfo, nil
+	}
+
+	// Upload the processed file back to the same location
+	l.logger.Debug("Starting upload of processed file", "overwriting_file_path", overwritingFilePath, "remote_rel_path", remoteRelPath)
+
+	// Check if processed file exists
+	if _, err := os.Stat(overwritingFilePath); err != nil {
+		l.logger.Error("Failed to stat processed file", "path", overwritingFilePath, "error", err)
+		return nil, fmt.Errorf("failed to stat processed file: %w", err)
+	}
+
+	// Open processed file
+	processedSrc, err := os.Open(overwritingFilePath)
+	if err != nil {
+		l.logger.Error("Failed to open processed file", "path", overwritingFilePath, "error", err)
+		return nil, fmt.Errorf("failed to open processed file: %w", err)
+	}
+	defer processedSrc.Close()
+
+	// Create destination file (overwrite existing)
+	uploadDst, err := os.Create(remoteAbsPath)
+	if err != nil {
+		l.logger.Error("Failed to create destination file for upload", "path", remoteAbsPath, "error", err)
+		return nil, fmt.Errorf("failed to create destination file for upload: %w", err)
+	}
+	defer uploadDst.Close()
+
+	// Copy processed file content
+	size, err := l.copyWithContext(ctx, uploadDst, processedSrc)
+	if err != nil {
+		l.logger.Error("Failed to upload processed file", "overwriting_file_path", overwritingFilePath, "remote_abs_path", remoteAbsPath, "error", err)
+		return nil, fmt.Errorf("failed to upload processed file: %w", err)
+	}
+
+	// Get updated file info
 	uploadedInfo, err := os.Stat(remoteAbsPath)
 	if err != nil {
 		l.logger.Error("Failed to stat uploaded file", "path", remoteAbsPath, "error", err)
 		return nil, fmt.Errorf("failed to stat uploaded file: %w", err)
 	}
 
-	fileInfo := &uobf.FileInfo{
+	updatedFileInfo := &uobf.FileInfo{
 		Name:    uploadedInfo.Name(),
 		Size:    uploadedInfo.Size(),
 		Mode:    uint32(uploadedInfo.Mode()),
@@ -264,8 +260,17 @@ func (l *LocalFileSystem) Upload(ctx context.Context, localFullPath, remoteRelPa
 		AbsPath: remoteAbsPath,
 	}
 
-	l.logger.Info("File uploaded successfully", "local_full_path", localFullPath, "remote_rel_path", remoteRelPath, "size", size)
-	return fileInfo, nil
+	// Delete the processed file if autoRemove is true and it's different from the source
+	if autoRemove && overwritingFilePath != "" && overwritingFilePath != tmpPath {
+		l.logger.Debug("Removing processed file after upload", "path", overwritingFilePath)
+		if err := os.Remove(overwritingFilePath); err != nil {
+			l.logger.Warn("Failed to remove processed file after upload", "path", overwritingFilePath, "error", err)
+			// Don't fail the operation if we can't delete the temp file
+		}
+	}
+
+	l.logger.Info("File overwrite completed successfully", "remote_rel_path", remoteRelPath, "size", size)
+	return updatedFileInfo, nil
 }
 
 // copyWithContext copies data from src to dst while checking for context cancellation
