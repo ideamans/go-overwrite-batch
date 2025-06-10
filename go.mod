@@ -1,4 +1,4 @@
-module github.com/ideamans/overwritebatch
+module github.com/ideamans/go-overwrite-batch
 
 go 1.23.0
 

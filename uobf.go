@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ideamans/overwritebatch/common"
+	"github.com/ideamans/go-overwrite-batch/common"
 )
 
 // =============================================================================

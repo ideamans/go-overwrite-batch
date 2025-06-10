@@ -324,7 +324,7 @@ NEVER proactively create documentation files (*.md) or README files. Only create
 
 ALWAYS use the l10n package for any user-facing text in code:
 
-- Import `github.com/ideamans/overwritebatch/l10n` in all components
+- Import `github.com/ideamans/go-overwrite-batch/l10n` in all components
 - Wrap all log messages with `l10n.T("message")`
 - Wrap all error messages with `l10n.T("error message")`
 - Register Japanese translations using `l10n.Register("ja", l10n.LexiconMap{...})` in `init()` function

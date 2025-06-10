@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/ideamans/go-l10n"
-	uobf "github.com/ideamans/overwritebatch"
-	"github.com/ideamans/overwritebatch/common"
+	uobf "github.com/ideamans/go-overwrite-batch"
+	"github.com/ideamans/go-overwrite-batch/common"
 )
 
 // FileStatus represents the processing status of a file

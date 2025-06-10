@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ideamans/overwritebatch/common"
+	"github.com/ideamans/go-overwrite-batch/common"
 )
 
 // Mock implementations for testing

@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	uobf "github.com/ideamans/overwritebatch"
-	"github.com/ideamans/overwritebatch/backlog"
-	"github.com/ideamans/overwritebatch/common"
-	"github.com/ideamans/overwritebatch/filesystem"
-	"github.com/ideamans/overwritebatch/status"
 	"github.com/ideamans/go-l10n"
+	uobf "github.com/ideamans/go-overwrite-batch"
+	"github.com/ideamans/go-overwrite-batch/backlog"
+	"github.com/ideamans/go-overwrite-batch/common"
+	"github.com/ideamans/go-overwrite-batch/filesystem"
+	"github.com/ideamans/go-overwrite-batch/status"
 )
 
 func init() {

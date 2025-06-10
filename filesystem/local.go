@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	uobf "github.com/ideamans/overwritebatch"
-	"github.com/ideamans/overwritebatch/common"
+	uobf "github.com/ideamans/go-overwrite-batch"
+	"github.com/ideamans/go-overwrite-batch/common"
 )
 
 // LocalFileSystem implements FileSystem interface for local filesystem operations

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	uobf "github.com/ideamans/overwritebatch"
-	"github.com/ideamans/overwritebatch/common"
+	uobf "github.com/ideamans/go-overwrite-batch"
+	"github.com/ideamans/go-overwrite-batch/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -360,11 +360,11 @@ func TestLocalFileSystem_Overwrite(t *testing.T) {
 					processedFiles, err := filepath.Glob(filepath.Join(testSubDir, "*.processed_autoremove"))
 					assert.NoError(t, err)
 					assert.Empty(t, processedFiles, "Processed file should have been auto-removed")
-				
+
 				case "in-place modification (same file path)":
 					// The temp file should still exist (not deleted because it's the same as srcFilePath)
 					// This is handled by the temporary file cleanup in Overwrite method
-					
+
 				case "autoRemove false with different path":
 					// The processed file should still exist
 					// Note: The processed file is created in the system temp directory, not testSubDir

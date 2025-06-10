@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ideamans/go-l10n"
-	"github.com/ideamans/overwritebatch/common"
+	"github.com/ideamans/go-overwrite-batch/common"
 )
 
 // testLogger implements Logger interface for testing

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	uobf "github.com/ideamans/overwritebatch"
+	uobf "github.com/ideamans/go-overwrite-batch"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
