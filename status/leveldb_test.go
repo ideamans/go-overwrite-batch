@@ -395,7 +395,7 @@ func TestLevelDBStatusMemory_NeedsProcessing_ContextCancellation(t *testing.T) {
 
 	// Give a moment for the goroutine to start processing
 	time.Sleep(1 * time.Millisecond)
-	
+
 	// Cancel context after starting
 	cancel()
 

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ideamans/go-l10n"
 	uobf "github.com/ideamans/overwritebatch"
 	"github.com/ideamans/overwritebatch/common"
-	"github.com/ideamans/go-l10n"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )

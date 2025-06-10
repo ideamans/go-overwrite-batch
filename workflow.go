@@ -2,13 +2,12 @@ package uobf
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"sync/atomic"
 	"time"
 
-	"github.com/ideamans/overwritebatch/common"
 	"github.com/ideamans/go-l10n"
+	"github.com/ideamans/overwritebatch/common"
 )
 
 func init() {
@@ -31,11 +30,8 @@ func init() {
 		"Failed to process file":               "ファイルの処理に失敗しました",
 		"File processing completed":            "ファイル処理が完了しました",
 		"Starting file processing":             "ファイル処理を開始します",
-		"Download failed":                      "ダウンロードに失敗しました",
-		"File downloaded":                      "ファイルがダウンロードされました",
 		"Processing failed":                    "処理に失敗しました",
 		"File processed":                       "ファイルが処理されました",
-		"Upload failed":                        "アップロードに失敗しました",
 		"File uploaded successfully":           "ファイルが正常にアップロードされました",
 		"Failed to report completion":          "完了報告に失敗しました",
 	})
@@ -222,80 +218,57 @@ func (w *OverwriteWorkflow) processWithConcurrency(ctx context.Context, relPaths
 func (w *OverwriteWorkflow) processFile(ctx context.Context, relPath string, retryExecutor *common.RetryExecutor, processFunc ProcessFunc) error {
 	w.logger.Debug(l10n.T("Starting file processing"), "rel_path", relPath)
 
-	// Create FileInfo for the relative path
-	fileInfo := FileInfo{
-		Name:    filepath.Base(relPath),
-		RelPath: relPath,
-		AbsPath: relPath, // For LocalFileSystem, this should be treated as the remote path
-		Size:    0,       // Would be populated by filesystem.Stat in real implementation
-		ModTime: time.Now(),
-		IsDir:   false,
-	}
-
-	// Create temporary file for download
-	tempFile, err := os.CreateTemp("", "uobf_*"+filepath.Ext(relPath))
-	if err != nil {
-		if reportErr := w.statusMemory.ReportError(ctx, fileInfo, err); reportErr != nil {
-			w.logger.Warn(l10n.T("Failed to report error to status memory"), "error", reportErr)
-		}
-		return err
-	}
-	tempPath := tempFile.Name()
-	if err := tempFile.Close(); err != nil {
-		w.logger.Warn(l10n.T("Failed to close temp file"), "error", err)
-	}
-	defer func() {
-		if err := os.Remove(tempPath); err != nil && !os.IsNotExist(err) {
-			w.logger.Warn(l10n.T("Failed to remove temp file"), "path", tempPath, "error", err)
-		}
-	}()
-
-	// Download with retry
-	downloadErr := retryExecutor.Execute(ctx, func() error {
-		return w.fs.Download(ctx, relPath, tempPath)
-	})
-	if downloadErr != nil {
-		w.logger.Error(l10n.T("Download failed"), "rel_path", relPath, "error", downloadErr)
-		if reportErr := w.statusMemory.ReportError(ctx, fileInfo, downloadErr); reportErr != nil {
-			w.logger.Warn(l10n.T("Failed to report download error to status memory"), "error", reportErr)
-		}
-		return downloadErr
-	}
-
-	w.logger.Debug(l10n.T("File downloaded"), "rel_path", relPath, "temp_path", tempPath)
-
-	// Process file
-	processedPath, processErr := processFunc(ctx, tempPath)
-	if processErr != nil {
-		w.logger.Error(l10n.T("Processing failed"), "rel_path", relPath, "error", processErr)
-		if reportErr := w.statusMemory.ReportError(ctx, fileInfo, processErr); reportErr != nil {
-			w.logger.Warn(l10n.T("Failed to report process error to status memory"), "error", reportErr)
-		}
-		return processErr
-	}
-
-	w.logger.Debug(l10n.T("File processed"), "rel_path", relPath, "processed_path", processedPath)
-
-	// Upload with retry (no cancellation during upload)
+	// Use the new Overwrite method with a callback
 	var uploadedFileInfo *FileInfo
-	uploadErr := retryExecutor.Execute(context.Background(), func() error {
+	overwriteErr := retryExecutor.Execute(ctx, func() error {
 		var err error
-		uploadedFileInfo, err = w.fs.Upload(ctx, processedPath, relPath)
+		uploadedFileInfo, err = w.fs.Overwrite(ctx, relPath, func(fileInfo FileInfo, srcFilePath string) (string, bool, error) {
+			// Process the downloaded file
+			processedPath, processErr := processFunc(ctx, srcFilePath)
+			if processErr != nil {
+				w.logger.Error(l10n.T("Processing failed"), "rel_path", relPath, "error", processErr)
+				// Report error to status memory
+				if reportErr := w.statusMemory.ReportError(ctx, fileInfo, processErr); reportErr != nil {
+					w.logger.Warn(l10n.T("Failed to report process error to status memory"), "error", reportErr)
+				}
+				return "", false, processErr
+			}
+
+			w.logger.Debug(l10n.T("File processed"), "rel_path", relPath, "processed_path", processedPath)
+
+			// Return the processed file path for upload
+			// If processedPath is empty, it means intentional skip
+			// Set autoRemove to true to clean up processed files that are different from source
+			autoRemove := processedPath != "" && processedPath != srcFilePath
+			return processedPath, autoRemove, nil
+		})
 		return err
 	})
-	if uploadErr != nil {
-		w.logger.Error(l10n.T("Upload failed"), "rel_path", relPath, "error", uploadErr)
-		if reportErr := w.statusMemory.ReportError(ctx, fileInfo, uploadErr); reportErr != nil {
-			w.logger.Warn(l10n.T("Failed to report upload error to status memory"), "error", reportErr)
-		}
-		return uploadErr
-	}
 
-	w.logger.Info(l10n.T("File uploaded successfully"), "rel_path", relPath, "size", uploadedFileInfo.Size)
+	if overwriteErr != nil {
+		// Create a minimal FileInfo for error reporting if we don't have one
+		if uploadedFileInfo == nil {
+			fileInfo := FileInfo{
+				Name:    filepath.Base(relPath),
+				RelPath: relPath,
+				AbsPath: relPath,
+				Size:    0,
+				ModTime: time.Now(),
+				IsDir:   false,
+			}
+			if reportErr := w.statusMemory.ReportError(ctx, fileInfo, overwriteErr); reportErr != nil {
+				w.logger.Warn(l10n.T("Failed to report error to status memory"), "error", reportErr)
+			}
+		}
+		return overwriteErr
+	}
 
 	// Report success
-	if err := w.statusMemory.ReportDone(ctx, *uploadedFileInfo); err != nil {
-		w.logger.Warn(l10n.T("Failed to report completion"), "rel_path", relPath, "error", err)
+	if uploadedFileInfo != nil {
+		w.logger.Info(l10n.T("File uploaded successfully"), "rel_path", relPath, "size", uploadedFileInfo.Size)
+		if err := w.statusMemory.ReportDone(ctx, *uploadedFileInfo); err != nil {
+			w.logger.Warn(l10n.T("Failed to report completion"), "rel_path", relPath, "error", err)
+		}
 	}
 
 	return nil

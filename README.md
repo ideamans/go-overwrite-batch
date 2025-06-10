@@ -98,10 +98,13 @@ The library implements a two-phase workflow:
 
 ### FileSystem Interface
 Provides unified operations across different storage types:
-- `Walk`: Traverse directory structure
-- `ReadFile`: Download file content
-- `WriteFile`: Upload file content
-- `Stat`: Get file information
+- `Walk`: Traverse directory structure with filtering options
+- `Overwrite`: Download, process via callback, and optionally upload files in one atomic operation
+  - Callback receives file metadata and downloaded file path
+  - Returns processed file path, autoRemove flag, and error
+  - If processed path is empty, upload is skipped (intentional skip)
+  - If autoRemove is true and processed path differs from source, the processed file is automatically deleted after upload
+  - Supports error handling and graceful cleanup
 
 ### StatusMemory Interface
 Tracks file processing state:

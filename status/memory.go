@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ideamans/go-l10n"
 	uobf "github.com/ideamans/overwritebatch"
 	"github.com/ideamans/overwritebatch/common"
-	"github.com/ideamans/go-l10n"
 )
 
 // FileStatus represents the processing status of a file

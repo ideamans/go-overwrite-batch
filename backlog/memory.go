@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ideamans/overwritebatch/common"
 	"github.com/ideamans/go-l10n"
+	"github.com/ideamans/overwritebatch/common"
 )
 
 func init() {
