@@ -75,6 +75,26 @@ type FileSystem interface {
 
 	// SetLogger sets the logger for the filesystem implementation
 	SetLogger(logger common.Logger)
+
+	// GetURL returns the base URL for the filesystem.
+	//
+	// For local filesystems, it returns a file:// URL with platform-specific formatting:
+	//   - Unix paths: /home/user/data → file:///home/user/data
+	//   - Windows drive paths: C:\Users\data → file:///C:/Users/data
+	//   - Windows UNC paths: \\server\share → file:////server/share
+	//
+	// The file:// URL format follows RFC 8089 conventions:
+	//   - Three slashes (///) for local paths: file:///path
+	//   - The third slash represents an empty host (localhost is implied)
+	//   - Windows drive letters keep the colon: file:///C:/path
+	//   - UNC paths result in four slashes: file:////server/share
+	//
+	// For remote filesystems, it returns the protocol-specific URL:
+	//   - FTP: ftp://host:port/path
+	//   - SFTP: sftp://host:port/path
+	//   - S3: s3://bucket/prefix
+	//   - WebDAV: http://host:port/path or https://host:port/path
+	GetURL() string
 }
 
 // =============================================================================

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,79 @@ func TestLocalFileSystem_SetLogger(t *testing.T) {
 	mockLogger := &mockLogger{}
 	fs.SetLogger(mockLogger)
 	assert.Equal(t, mockLogger, fs.logger)
+}
+
+func TestLocalFileSystem_GetURL(t *testing.T) {
+	tests := []struct {
+		name       string
+		rootPath   string
+		expected   string
+		skipOnUnix bool
+		skipOnWin  bool
+	}{
+		{
+			name:     "absolute unix path",
+			rootPath: "/usr/local/share",
+			expected: "file:///usr/local/share",
+		},
+		{
+			name:       "absolute windows path",
+			rootPath:   `C:\Users\test`,
+			expected:   "file:///C:/Users/test",
+			skipOnUnix: true, // Skip on Unix systems where this would be relative
+		},
+		{
+			name:     "relative path",
+			rootPath: "./relative/path",
+			expected: "file://", // This will be prepended with the actual absolute path
+		},
+		{
+			name:     "path with spaces",
+			rootPath: "/path with spaces/dir",
+			expected: "file:///path with spaces/dir",
+		},
+		{
+			name:     "root path",
+			rootPath: "/",
+			expected: "file:///",
+		},
+		{
+			name:       "windows drive root",
+			rootPath:   `C:\`,
+			expected:   "file:///C:/",
+			skipOnUnix: true,
+		},
+		{
+			name:       "windows UNC path",
+			rootPath:   `\\server\share\folder`,
+			expected:   "file:////server/share/folder",
+			skipOnUnix: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Skip platform-specific tests
+			if tt.skipOnUnix && filepath.Separator == '/' {
+				t.Skip("Skipping Windows-specific test on Unix")
+			}
+			if tt.skipOnWin && filepath.Separator == '\\' {
+				t.Skip("Skipping Unix-specific test on Windows")
+			}
+
+			fs := NewLocalFileSystem(tt.rootPath)
+			result := fs.GetURL()
+
+			if tt.name == "relative path" {
+				// For relative paths, just check that it starts with file://
+				// and contains the relative path portion
+				assert.True(t, strings.HasPrefix(result, "file://"))
+				assert.Contains(t, result, "relative/path")
+			} else {
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
 }
 
 func TestLocalFileSystem_Walk(t *testing.T) {

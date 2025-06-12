@@ -18,6 +18,7 @@ type MockFileSystem struct {
 	OverwriteFunc func(ctx context.Context, remoteRelPath string, callback OverwriteCallback) (*FileInfo, error)
 	CloseFunc     func() error
 	SetLoggerFunc func(logger common.Logger)
+	GetURLFunc    func() string
 }
 
 func (m *MockFileSystem) Walk(ctx context.Context, options WalkOptions, ch chan<- FileInfo) error {
@@ -66,6 +67,13 @@ func (m *MockFileSystem) SetLogger(logger common.Logger) {
 	if m.SetLoggerFunc != nil {
 		m.SetLoggerFunc(logger)
 	}
+}
+
+func (m *MockFileSystem) GetURL() string {
+	if m.GetURLFunc != nil {
+		return m.GetURLFunc()
+	}
+	return "mock://test"
 }
 
 // MockStatusMemory provides a mock implementation of StatusMemory

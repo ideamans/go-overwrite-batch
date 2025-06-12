@@ -109,6 +109,12 @@ Provides unified operations across different storage types:
   - If processed path is empty, upload is skipped (intentional skip)
   - If autoRemove is true and processed path differs from source, the processed file is automatically deleted after upload
   - Supports error handling and graceful cleanup
+- `GetURL`: Get the base URL representation of the filesystem
+  - Local filesystem examples:
+    - Unix: `/home/user/data` → `file:///home/user/data`
+    - Windows: `C:\Users\data` → `file:///C:/Users/data`
+    - Windows UNC: `\\server\share` → `file:////server/share`
+  - Remote filesystems return their protocol URLs (e.g., `ftp://host/path`, `s3://bucket/prefix`)
 
 ### StatusMemory Interface
 

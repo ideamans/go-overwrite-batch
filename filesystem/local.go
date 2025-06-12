@@ -36,6 +36,46 @@ func (l *LocalFileSystem) SetLogger(logger common.Logger) {
 	l.logger = logger
 }
 
+// GetURL returns the file URL for the local filesystem root path.
+// It converts the filesystem's root path to a properly formatted file:// URL
+// following RFC 8089 conventions.
+//
+// Examples:
+//   - Unix path: /home/user/data → file:///home/user/data
+//   - Windows path: C:\Users\data → file:///C:/Users/data
+//   - Windows UNC: \\server\share → file:////server/share
+//   - Relative path: ./data → file:///absolute/path/to/data
+func (l *LocalFileSystem) GetURL() string {
+	// Ensure the path is absolute
+	absPath := l.rootPath
+	if !filepath.IsAbs(absPath) {
+		// Convert to absolute path if it's relative
+		var err error
+		absPath, err = filepath.Abs(absPath)
+		if err != nil {
+			// If we can't get absolute path, use the original
+			absPath = l.rootPath
+		}
+	}
+	// Convert to forward slashes for URL consistency
+	urlPath := filepath.ToSlash(absPath)
+
+	// Handle different path types:
+	// 1. Windows absolute paths (e.g., C:/Users) -> file:///C:/Users
+	// 2. Unix absolute paths (e.g., /home) -> file:///home
+	// 3. Windows UNC paths (e.g., //server/share) -> file:////server/share
+
+	if strings.HasPrefix(urlPath, "//") {
+		// Windows UNC path - needs 4 slashes total (file:// + //)
+		return "file:" + urlPath
+	} else if !strings.HasPrefix(urlPath, "/") {
+		// Windows drive path without leading slash (e.g., C:/Users)
+		return "file:///" + urlPath
+	}
+	// Unix path already has leading slash
+	return "file://" + urlPath
+}
+
 // Walk traverses directories with options and sends FileInfo to the channel
 func (l *LocalFileSystem) Walk(ctx context.Context, options uobf.WalkOptions, ch chan<- uobf.FileInfo) error {
 	l.logger.Debug("Starting local filesystem walk", "root_path", l.rootPath, "options", options)
